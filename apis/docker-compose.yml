@@ -1,0 +1,11 @@
+services:
+  apis:
+    build: .
+    container_name: farm-ai-apis
+    ports:
+      - '3000:3000'
+      - '3001:3001'
+    environment:
+      - PORT=3000
+      - MS_HOST=0.0.0.0
+      - MS_PORT=3001
