@@ -1,14 +1,62 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/l10n/strings_bn.dart';
-import '../../../../core/theme/app_theme.dart';
+import '../providers/auth_provider.dart';
 import '../widgets/auth_background.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends ConsumerState<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('অনুগ্রহ করে ইমেইল এবং পাসওয়ার্ড প্রদান করুন।'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
+
+    final success = await ref.read(authProvider.notifier).login(email, password);
+
+    if (mounted) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('লগইন সফল হয়েছে! 👋'),
+            backgroundColor: Color(0xFF2E7D32),
+          ),
+        );
+        context.go('/home');
+      } else {
+        final errorMsg = ref.read(authProvider).errorMessage ?? 'লগইন করতে ব্যর্থ হয়েছে। ইমেইল বা পাসওয়ার্ড পরীক্ষা করুন।';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMsg),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
+
     return Scaffold(
       body: AuthBackground(
         child: SafeArea(
@@ -18,10 +66,9 @@ class LoginScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Glassmorphic-style card
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
+                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.95),
                       borderRadius: BorderRadius.circular(32),
@@ -57,76 +104,69 @@ class LoginScreen extends StatelessWidget {
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                        const SizedBox(height: 40),
+                        const SizedBox(height: 24),
+
+                        if (authState.errorMessage != null)
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            margin: const EdgeInsets.only(bottom: 16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF2F2),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFFCA5A5)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    authState.errorMessage!,
+                                    style: const TextStyle(color: Color(0xFF991B1B), fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
                         // Email Field
                         _buildTextField(
+                          controller: _emailController,
                           label: StringsBn.emailLabel,
                           icon: Icons.email_outlined,
                         ),
                         const SizedBox(height: 16),
                         // Password Field
                         _buildTextField(
+                          controller: _passwordController,
                           label: StringsBn.passwordLabel,
                           icon: Icons.lock_outline_rounded,
                           isPassword: true,
                         ),
-                        const SizedBox(height: 32),
-                        // Login Button
+                        const SizedBox(height: 28),
+
+                        // Login Button with JWT auth
                         ElevatedButton(
-                          onPressed: () => context.go('/home'),
+                          onPressed: authState.isLoading ? null : _handleLogin,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF2E7D32),
                             minimumSize: const Size(double.infinity, 56),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             elevation: 0,
                           ),
-                          child: const Text(
-                            StringsBn.loginButton,
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        // Or login with Gmail
-                        Row(
-                          children: [
-                            Expanded(child: Divider(color: Colors.grey.shade200)),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 16),
-                              child: Text('অথবা', style: TextStyle(color: Color(0xFFBDC3C7), fontSize: 12, fontWeight: FontWeight.w600)),
-                            ),
-                            Expanded(child: Divider(color: Colors.grey.shade200)),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        // Gmail Login Button
-                        InkWell(
-                          onTap: () => context.go('/home'),
-                          borderRadius: BorderRadius.circular(16),
-                          child: Container(
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: const Color(0xFFE0E6ED)),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.g_mobiledata_rounded, color: Color(0xFF4285F4), size: 32),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  StringsBn.gmailLoginButton,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF2C3E50),
-                                  ),
+                          child: authState.isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                )
+                              : const Text(
+                                  StringsBn.loginButton,
+                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                                 ),
-                              ],
-                            ),
-                          ),
                         ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 24),
+
                         // Registration Link
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -156,8 +196,14 @@ class LoginScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTextField({required String label, required IconData icon, bool isPassword = false}) {
-    return TextField(
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool isPassword = false,
+  }) {
+    return TextFormField(
+      controller: controller,
       obscureText: isPassword,
       decoration: InputDecoration(
         labelText: label,
@@ -179,5 +225,12 @@ class LoginScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 }

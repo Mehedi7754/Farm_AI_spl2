@@ -18,10 +18,10 @@ import '../../features/utilities/presentation/screens/medicine_info_screen.dart'
 import '../../features/utilities/presentation/screens/weather_screen.dart';
 import '../../features/utilities/presentation/screens/vaccine_reminder_screen.dart';
 import '../../features/auth/presentation/screens/registration_screen.dart';
+import '../../features/notifications/presentation/screens/notification_screen.dart';
 import '../../shared/widgets/scaffold_with_bottom_nav.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
-final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 final router = GoRouter(
   navigatorKey: _rootNavigatorKey,
@@ -39,41 +39,56 @@ final router = GoRouter(
       path: '/register',
       builder: (context, state) => const RegistrationScreen(),
     ),
-    ShellRoute(
-      navigatorKey: _shellNavigatorKey,
-      builder: (context, state, child) {
-        return ScaffoldWithBottomNav(child: child);
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, navigationShell) {
+        return ScaffoldWithBottomNav(navigationShell: navigationShell);
       },
-      routes: [
-        GoRoute(
-          path: '/home',
-          builder: (context, state) => const HomeScreen(),
-        ),
-        GoRoute(
-          path: '/animals',
-          builder: (context, state) => const AnimalListScreen(),
+      branches: [
+        StatefulShellBranch(
           routes: [
             GoRoute(
-              path: 'detail',
-              builder: (context, state) => const AnimalDetailScreen(),
-            ),
-            GoRoute(
-              path: 'collar',
-              builder: (context, state) => const SmartCollarScreen(),
+              path: '/home',
+              builder: (context, state) => const HomeScreen(),
             ),
           ],
         ),
-        GoRoute(
-          path: '/community',
-          builder: (context, state) => const CommunityScreen(),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/animals',
+              builder: (context, state) => const AnimalListScreen(),
+              routes: [
+                GoRoute(
+                  path: 'detail',
+                  builder: (context, state) => const AnimalDetailScreen(),
+                ),
+                GoRoute(
+                  path: 'collar',
+                  builder: (context, state) => const SmartCollarScreen(),
+                ),
+              ],
+            ),
+          ],
         ),
-        GoRoute(
-          path: '/accounting',
-          builder: (context, state) => const AccountingScreen(),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/community',
+              builder: (context, state) => const CommunityScreen(),
+            ),
+          ],
         ),
-        GoRoute(
-          path: '/profile',
-          builder: (context, state) => const ProfileScreen(),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/profile',
+              builder: (context, state) => const ProfileScreen(),
+            ),
+            GoRoute(
+              path: '/accounting',
+              builder: (context, state) => const AccountingScreen(),
+            ),
+          ],
         ),
       ],
     ),
@@ -110,12 +125,37 @@ final router = GoRouter(
     GoRoute(
       path: '/weather',
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const WeatherScreen(),
+      pageBuilder: (context, state) {
+        return CustomTransitionPage(
+          key: state.pageKey,
+          child: const WeatherScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(0.0, 0.08);
+            const end = Offset.zero;
+            const curve = Curves.easeOutCubic;
+            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+            var offsetAnimation = animation.drive(tween);
+            var fadeAnimation = CurvedAnimation(parent: animation, curve: Curves.easeIn);
+            return SlideTransition(
+              position: offsetAnimation,
+              child: FadeTransition(
+                opacity: fadeAnimation,
+                child: child,
+              ),
+            );
+          },
+        );
+      },
     ),
     GoRoute(
       path: '/reminders',
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const VaccineReminderScreen(),
+    ),
+    GoRoute(
+      path: '/notifications',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const NotificationScreen(),
     ),
   ],
 );

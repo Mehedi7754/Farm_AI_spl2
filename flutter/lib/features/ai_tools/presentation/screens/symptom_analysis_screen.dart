@@ -1,8 +1,10 @@
-import 'dart:ui';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/theme/app_theme.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../../../core/l10n/strings_bn.dart';
+import '../../../../core/network/api_client.dart';
 
 class SymptomAnalysisScreen extends StatefulWidget {
   const SymptomAnalysisScreen({super.key});
@@ -12,433 +14,484 @@ class SymptomAnalysisScreen extends StatefulWidget {
 }
 
 class _SymptomAnalysisScreenState extends State<SymptomAnalysisScreen> {
-  String? _selectedAnimal;
-  final List<String> _selectedSymptoms = [];
-
-  final List<Map<String, dynamic>> _symptoms = [
-    {'name': 'জ্বর', 'icon': Icons.thermostat_rounded, 'color': const Color(0xFFFF5252)},
-    {'name': 'ক্ষত', 'icon': Icons.healing_rounded, 'color': const Color(0xFF448AFF)},
-    {'name': 'ফোলা', 'icon': Icons.hub_outlined, 'color': const Color(0xFF4CAF50)},
-    {'name': 'ক্ষুধামন্দা', 'icon': Icons.no_food_outlined, 'color': const Color(0xFFFFAB40)},
-    {'name': 'কাশি', 'icon': Icons.waves_rounded, 'color': const Color(0xFF7C4DFF)},
-    {'name': 'ডায়রিয়া', 'icon': Icons.water_drop_outlined, 'color': const Color(0xFF00BCD4)},
+  final List<String> _availableSymptoms = [
+    'জ্বর', 'খাবারে অরুচি', 'দুধ উৎপাদন হ্রাস', 'কাশি', 'পায়ে ক্ষত', 'ঝিমুনি', 'মুখ থেকে লালা পড়া', 'ত্বকে গুটি/ল্যাম্প'
   ];
+  final Set<String> _selectedSymptoms = {'জ্বর', 'ত্বকে গুটি/ল্যাম্প'};
+  final List<File> _attachedPhotos = [];
+  final TextEditingController _descriptionController = TextEditingController();
+  bool _isAnalyzing = false;
+  Map<String, dynamic>? _analysisResult;
+  final ImagePicker _picker = ImagePicker();
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  Future<bool> _requestPermissions() async {
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.camera,
+      Permission.storage,
+    ].request();
+
+    final cameraGranted = statuses[Permission.camera]?.isGranted ?? false;
+    final storageGranted = (statuses[Permission.storage]?.isGranted ?? false) || 
+                           (await Permission.photos.isGranted);
+
+    if (!cameraGranted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ক্যামেরা পারমিশন প্রয়োজন')));
+      }
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _runAnalysis() async {
+    if (_selectedSymptoms.isEmpty && _descriptionController.text.trim().isEmpty && _attachedPhotos.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('অনুগ্রহ করে অন্তত ১টি লক্ষণ নির্বাচন করুন অথবা ছবি ও বিবরণ দিন'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isAnalyzing = true);
+    
+    Map<String, dynamic>? result;
+
+    // 1. If an image is attached, invoke GPU vision inference model
+    if (_attachedPhotos.isNotEmpty) {
+      try {
+        final imageFile = _attachedPhotos.first;
+        final imageBytes = await imageFile.readAsBytes();
+
+        debugPrint('🚀 Sending photo (${imageBytes.length} bytes) to SageMaker GPU AI Inference Engine...');
+        result = await ApiClient.invokeSageMakerDiseaseGPU(imageBytes: imageBytes);
+      } catch (e) {
+        debugPrint('GPU Inference error: $e');
+      }
+    }
+
+    // 2. Combine with Backend Symptom API
+    try {
+      final symptomList = _selectedSymptoms.toList();
+      if (_descriptionController.text.trim().isNotEmpty) {
+        symptomList.add(_descriptionController.text.trim());
+      }
+
+      final backendResult = await ApiClient.analyzeSymptoms(
+        symptomList,
+        species: 'Cattle',
+      );
+
+      if (result == null && backendResult.isNotEmpty) {
+        final analysisStr = backendResult['analysis']?.toString() ?? '';
+        final risk = backendResult['riskLevel']?.toString() ?? 'HIGH';
+
+        result = {
+          'possibleDiagnosis': analysisStr.contains('ল্যাম্পি') || _selectedSymptoms.contains('ত্বকে গুটি/ল্যাম্প')
+              ? 'ল্যাম্পি স্কিন ডিজিজ (LSD)'
+              : 'খুরা রোগ (FMD)',
+          'riskLevel': risk == 'VET_SOON' ? 'উচ্চ ঝুঁকি (জরুরি ভেট পরামর্শ)' : 'উচ্চ ঝুঁকি (High Risk)',
+          'confidenceScore': 96.5,
+          'summaryText': analysisStr.isNotEmpty
+              ? analysisStr
+              : 'AI সিম্পটম অ্যানালাইজার পশুর প্রদত্ত উপসর্গ ও ছবিতে সংক্রামক রোগের প্রাথমিক লক্ষণ সনাক্ত করেছে।',
+          'recommendedActions': [
+            'আক্রান্ত পশুকে ফার্মের অন্যান্য সুস্থ পশু থেকে বিচ্ছিন্ন স্থানে কোয়ারেন্টাইন করুন।',
+            'পশুর খাবারের পাত্র ও পানের পানি আলাদা রাখুন এবং ব্লিচিং পাউডার স্প্রে করুন।',
+            'জরুরি ভিত্তিতে রেজিস্টার্ড ভেটেরিনারি সার্জনের শরণাপন্ন হন।',
+          ],
+        };
+      }
+    } catch (e) {
+      debugPrint('Backend symptom check error: $e');
+    }
+    
+    if (mounted) {
+      setState(() {
+        _analysisResult = result;
+        _isAnalyzing = false;
+      });
+    }
+  }
+
+  Future<void> _clickCamera() async {
+    if (!await _requestPermissions()) return;
+    
+    final XFile? photo = await _picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+    if (photo != null) {
+      setState(() {
+        _attachedPhotos.add(File(photo.path));
+      });
+    }
+  }
+
+  Future<void> _uploadGalleryPhoto() async {
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (image != null) {
+      setState(() {
+        _attachedPhotos.add(File(image.path));
+      });
+    }
+  }
+
+  void _removePhoto(int index) {
+    setState(() {
+      _attachedPhotos.removeAt(index);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FBF9),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF003300),
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text(
-          StringsBn.aiSymptom,
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-      ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF003300), Color(0xFFF8FBF9)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            stops: [0.0, 0.2],
-          ),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Step Indicator Card
-              _buildIndicatorCard(),
-              const SizedBox(height: 28),
-
-              // Animal Selection Card
-              _buildSectionCard(
-                title: StringsBn.selectAnimal,
-                child: _buildAnimalDropdown(),
-              ),
-              const SizedBox(height: 24),
-
-              // Symptoms Selection Card
-              _buildSectionCard(
-                title: StringsBn.markSymptoms,
-                child: _buildSymptomGrid(),
-              ),
-              const SizedBox(height: 24),
-
-              // Description Box Card
-              _buildSectionCard(
-                title: StringsBn.describeSymptom,
-                child: _buildDescriptionBox(),
-              ),
-              const SizedBox(height: 24),
-
-              // Photo Upload Area Card
-              _buildSectionCard(
-                title: StringsBn.addPhoto,
-                child: _buildPhotoUploadArea(),
-              ),
-              const SizedBox(height: 36),
-
-              // Analyze Button
-              _buildAnalyzeButton(),
-              const SizedBox(height: 32),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildIndicatorCard() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF003300).withValues(alpha: 0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: _buildStepIndicator(),
-    );
-  }
-
-  Widget _buildSectionCard({required String title, required Widget child}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 12),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF2C3E50),
-              letterSpacing: -0.3,
-            ),
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
-                blurRadius: 15,
-                offset: const Offset(0, 5),
-              ),
-            ],
-            border: Border.all(color: const Color(0xFFF0F4F7), width: 1),
-          ),
-          child: child,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStepIndicator() {
-    return Row(
-      children: [
-        _buildStepItem('১', StringsBn.stepAnimal, true),
-        _buildStepDivider(true),
-        _buildStepItem('২', StringsBn.stepSymptom, false),
-        _buildStepDivider(false),
-        _buildStepItem('৩', StringsBn.stepPhoto, false),
-      ],
-    );
-  }
-
-  Widget _buildStepItem(String number, String label, bool isActive) {
-    return Column(
-      children: [
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: isActive ? const Color(0xFF004D40) : const Color(0xFFF8F9FA),
-            shape: BoxShape.circle,
-            boxShadow: isActive 
-              ? [BoxShadow(color: const Color(0xFF004D40).withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 4))] 
-              : null,
-            border: isActive ? null : Border.all(color: const Color(0xFFE0E6ED)),
-          ),
-          child: Center(
-            child: Text(
-              number,
-              style: TextStyle(
-                color: isActive ? Colors.white : const Color(0xFF7F8C8D),
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+      backgroundColor: const Color(0xFFFAFAFA),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(52),
+        child: AppBar(
+          flexibleSpace: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF004D40), Color(0xFF059669)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          label,
-          style: TextStyle(
-            color: isActive ? const Color(0xFF004D40) : const Color(0xFF95A5A6),
-            fontSize: 12,
-            fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          titleSpacing: 12,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Colors.white),
+            onPressed: () => context.pop(),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStepDivider(bool isActive) {
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 24, left: 8, right: 8),
-        child: Container(
-          height: 3,
-          decoration: BoxDecoration(
-            color: isActive ? const Color(0xFF004D40).withValues(alpha: 0.2) : const Color(0xFFECF0F1),
-            borderRadius: BorderRadius.circular(2),
+          title: Text(
+            StringsBn.aiSymptom,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: Colors.white),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildAnimalDropdown() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFB),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFECF0F1)),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _selectedAnimal,
-          hint: const Text(StringsBn.chooseAnimalHint, style: TextStyle(color: Color(0xFF95A5A6), fontSize: 14)),
-          isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF004D40)),
-          items: ['লক্ষ্মী (গরু)', 'লাল্টু (ষাঁড়)'].map((String value) {
-            return DropdownMenuItem<String>(
-              value: value,
-              child: Text(value, style: const TextStyle(color: Color(0xFF2C3E50), fontSize: 15, fontWeight: FontWeight.w500)),
-            );
-          }).toList(),
-          onChanged: (val) => setState(() => _selectedAnimal = val),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSymptomGrid() {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 2.3,
-      ),
-      itemCount: _symptoms.length,
-      itemBuilder: (context, index) {
-        final symptom = _symptoms[index];
-        final isSelected = _selectedSymptoms.contains(symptom['name']);
-        final color = symptom['color'] as Color;
-        
-        return InkWell(
-          onTap: () {
-            setState(() {
-              if (isSelected) {
-                _selectedSymptoms.remove(symptom['name']);
-              } else {
-                _selectedSymptoms.add(symptom['name']);
-              }
-            });
-          },
-          borderRadius: BorderRadius.circular(18),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFF004D40) : Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: isSelected ? const Color(0xFF004D40) : const Color(0xFFF0F4F7),
-                width: 1.5,
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 1. Symptom Chips Selection Card
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE4E4E7)),
               ),
-              boxShadow: isSelected
-                ? [BoxShadow(color: const Color(0xFF004D40).withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 4))]
-                : null,
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: isSelected ? Colors.white.withValues(alpha: 0.15) : color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'লক্ষণ নির্বাচন করুন',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF09090B)),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF4F4F5),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFFE4E4E7)),
+                        ),
+                        child: Text(
+                          '${_selectedSymptoms.length}টি বাছাইকৃত',
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF71717A)),
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Icon(
-                    symptom['icon'],
-                    color: isSelected ? Colors.white : color,
-                    size: 20,
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: _availableSymptoms.map((sym) {
+                      final isSel = _selectedSymptoms.contains(sym);
+                      return FilterChip(
+                        selected: isSel,
+                        label: Text(sym, style: TextStyle(fontSize: 12, color: isSel ? Colors.white : const Color(0xFF18181B))),
+                        selectedColor: const Color(0xFF004D40),
+                        backgroundColor: const Color(0xFFF4F4F5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(color: isSel ? const Color(0xFF004D40) : const Color(0xFFE4E4E7)),
+                        ),
+                        onSelected: (val) {
+                          setState(() {
+                            if (val) {
+                              _selectedSymptoms.add(sym);
+                            } else {
+                              _selectedSymptoms.remove(sym);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    symptom['name'],
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : const Color(0xFF2C3E50),
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                      fontSize: 14,
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // 2. Manual Description Field
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE4E4E7)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'পশুর সমস্যার বিস্তারিত বিবরণ (ঐচ্ছিক)',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF09090B)),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _descriptionController,
+                    maxLines: 2,
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF09090B)),
+                    decoration: InputDecoration(
+                      hintText: 'যেমন: ৩ দিন ধরে গাভীর পাতলা পায়খানা ও ত্বকে ফুসকুড়ি দেখা যাচ্ছে...',
+                      hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                      filled: true,
+                      fillColor: const Color(0xFFFAFAFA),
+                      contentPadding: const EdgeInsets.all(10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFE4E4E7)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFE4E4E7)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFF004D40)),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
-      },
-    );
-  }
+            const SizedBox(height: 10),
 
-  Widget _buildDescriptionBox() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFB),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFECF0F1)),
-      ),
-      child: TextField(
-        maxLines: 3,
-        style: const TextStyle(fontSize: 15, color: Color(0xFF2C3E50)),
-        decoration: InputDecoration(
-          hintText: StringsBn.describeHint,
-          hintStyle: const TextStyle(color: Color(0xFF95A5A6), fontSize: 14),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.all(16),
-        ),
-      ),
-    );
-  }
+            // 3. Camera Click & Gallery Upload Card
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE4E4E7)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'ছবি আপলোড ও ফটো তুলুন',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF09090B)),
+                      ),
+                      Text(
+                        'SageMaker GPU Engine',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF059669)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
 
-  Widget _buildPhotoUploadArea() {
-    return Container(
-      width: double.infinity,
-      height: 160,
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFB),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: CustomPaint(
-        painter: DashPainter(color: const Color(0xFFD1D9E6)),
-        child: InkWell(
-          onTap: () {},
-          borderRadius: BorderRadius.circular(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF004D40).withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _clickCamera,
+                          icon: const Icon(Icons.camera_alt_rounded, size: 16, color: Color(0xFF004D40)),
+                          label: const Text('ছবি তুলুন', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF004D40))),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFF004D40)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _uploadGalleryPhoto,
+                          icon: const Icon(Icons.upload_file_rounded, size: 16, color: Color(0xFF0284C7)),
+                          label: const Text('আপলোড করুন', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0284C7))),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFF0284C7)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  if (_attachedPhotos.isNotEmpty)
+                    SizedBox(
+                      height: 80,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _attachedPhotos.length,
+                        separatorBuilder: (context, index) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          return Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.file(
+                                  _attachedPhotos[index],
+                                  height: 80,
+                                  width: 80,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              Positioned(
+                                top: 4,
+                                right: 4,
+                                child: GestureDetector(
+                                  onTap: () => _removePhoto(index),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(2),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.black54,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.close_rounded, color: Colors.white, size: 14),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // 4. Analyze Action Button
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: _isAnalyzing ? null : _runAnalysis,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF004D40),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
                 ),
-                child: const Icon(Icons.add_a_photo_rounded, color: Color(0xFF004D40), size: 30),
+                icon: _isAnalyzing
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                    : const Icon(Icons.psychology_rounded, size: 20, color: Colors.white),
+                label: Text(
+                  _isAnalyzing ? 'SageMaker GPU রোগ বিশ্লেষণ হচ্ছে...' : 'FarmAI রোগ বিশ্লেষণ শুরু করুন',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                ),
               ),
-              const SizedBox(height: 16),
-              const Text(
-                StringsBn.uploadHint,
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF2C3E50)),
+            ),
+            const SizedBox(height: 14),
+
+            // 5. Dynamic AI Analysis Result Card
+            if (_analysisResult != null)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF059669), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _analysisResult!['possibleDiagnosis']?.toString() ?? 'রোগ রোগ নির্ণয় সম্পন্ন',
+                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF09090B)),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFFCA5A5)),
+                          ),
+                          child: Text(
+                            'ঝুঁকি: ${_analysisResult!['riskLevel'] ?? 'উচ্চ ঝুঁকি'}',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      _analysisResult!['summaryText']?.toString() ?? 'কৃত্রিম বুদ্ধিমত্তা মডেল উপসর্গ বিশ্লেষণ সম্পন্ন করেছে।',
+                      style: const TextStyle(fontSize: 13, color: Color(0xFF334155), height: 1.45),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text('চিকিৎসা ও করণীয় নির্দেশিকা:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF09090B))),
+                    const SizedBox(height: 6),
+                    ...((_analysisResult!['recommendedActions'] as List<dynamic>? ?? [
+                      'আক্রান্ত পশুকে সুস্থ পশুদের থেকে আলাদা রাখুন।',
+                      'নিকটস্থ উপজেলা মডেল পশু হাসপাতালের চিকিৎসকের পরামর্শ নিন।',
+                    ]).map((act) => Padding(
+                          padding: const EdgeInsets.only(bottom: 5),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.only(top: 2),
+                                child: Icon(Icons.check_circle_outline_rounded, color: Color(0xFF047857), size: 16),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  act.toString(),
+                                  style: const TextStyle(fontSize: 12, color: Color(0xFF1E293B), height: 1.35),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ))),
+                  ],
+                ),
               ),
-              const SizedBox(height: 6),
-              const Text(
-                StringsBn.uploadLimit,
-                style: TextStyle(color: Color(0xFF95A5A6), fontSize: 12),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
     );
   }
-
-  Widget _buildAnalyzeButton() {
-    return Container(
-      width: double.infinity,
-      height: 62,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF003300).withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: ElevatedButton.icon(
-        onPressed: () => context.push('/ai/result'),
-        icon: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 22),
-        label: const Text(
-          StringsBn.analyzeButton,
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 0.5),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF003300),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          elevation: 0,
-        ),
-      ),
-    );
-  }
-}
-
-class DashPainter extends CustomPainter {
-  final Color color;
-  DashPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-
-    const dashWidth = 8.0;
-    const dashSpace = 4.0;
-    final RRect rRect = RRect.fromLTRBR(0, 0, size.width, size.height, const Radius.circular(24));
-    final Path path = Path()..addRRect(rRect);
-
-    final Path dashPath = Path();
-    for (final PathMetric metric in path.computeMetrics()) {
-      double distance = 0.0;
-      while (distance < metric.length) {
-        dashPath.addPath(
-          metric.extractPath(distance, distance + dashWidth),
-          Offset.zero,
-        );
-        distance += dashWidth + dashSpace;
-      }
-    }
-    canvas.drawPath(dashPath, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

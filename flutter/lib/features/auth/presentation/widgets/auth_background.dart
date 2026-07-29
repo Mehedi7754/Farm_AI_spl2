@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../../core/theme/app_theme.dart';
 
 class AuthBackground extends StatelessWidget {
   final Widget child;
@@ -10,14 +9,12 @@ class AuthBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Background Illustration
         Positioned.fill(
           child: Image.asset(
             'assets/images/login_landscape.png',
             fit: BoxFit.cover,
           ),
         ),
-        // Gradient overlay
         Positioned.fill(
           child: Container(
             decoration: BoxDecoration(

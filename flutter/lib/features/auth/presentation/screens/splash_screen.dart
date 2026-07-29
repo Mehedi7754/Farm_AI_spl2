@@ -4,14 +4,18 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/l10n/strings_bn.dart';
 import '../../../../core/theme/app_theme.dart';
 
-class SplashScreen extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/network/api_client.dart';
+import '../providers/auth_provider.dart';
+
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
@@ -19,9 +23,17 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _navigateToNext() async {
-    await Future.delayed(const Duration(seconds: 3));
+    // Blazing fast 1.2s splash initialization
+    await Future.delayed(const Duration(milliseconds: 1200));
+    await ApiClient.loadPersistedAuth();
+
     if (mounted) {
-      context.go('/login');
+      if (ApiClient.authToken != null && ApiClient.currentUser != null) {
+        ref.read(authProvider.notifier).initAuth();
+        context.go('/home');
+      } else {
+        context.go('/login');
+      }
     }
   }
 

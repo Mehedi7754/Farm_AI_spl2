@@ -1,0 +1,201 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  FARMER
+  VET
+  ADMIN
+}
+
+enum AnimalStatus {
+  HEALTHY
+  SICK
+  PREGNANT
+  SOLD
+  DECEASED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum RiskLevel {
+  NORMAL
+  VET_SOON
+  EMERGENCY
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+model User {
+  id                String             @id @default(uuid())
+  name              String
+  email             String             @unique
+  password          String             @default("123456")
+  phoneNumber       String             @unique
+  role              Role               @default(FARMER)
+  location          String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  livestock         Livestock[]
+  consultations     TeleConsultation[] @relation("FarmerConsultations")
+  vetConsultations  TeleConsultation[] @relation("VetConsultations")
+  financialRecords  FinancialRecord[]
+  communityPosts    CommunityPost[]
+  communityComments CommunityComment[]
+  communityLikes    CommunityLike[]
+
+  @@map("users")
+}
+
+model District {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  nameBn    String
+  division  String
+  createdAt DateTime @default(now())
+
+  @@map("districts")
+}
+
+model Livestock {
+  id                String             @id @default(uuid())
+  farmerId          String
+  farmer            User               @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  species           String
+  breed             String
+  dateOfBirth       DateTime
+  gender            Gender
+  weight            Float
+  status            AnimalStatus       @default(HEALTHY)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  smartCollar       SmartCollar?
+  healthAssessments HealthAssessment[]
+  vaccinations      Vaccination[]
+
+  @@map("livestock")
+}
+
+model SmartCollar {
+  id            String    @id @default(uuid())
+  livestockId   String    @unique
+  livestock     Livestock @relation(fields: [livestockId], references: [id], onDelete: Cascade)
+  deviceCode    String    @unique
+  batteryLevel  Int       @default(100)
+  isOnline      Boolean   @default(true)
+  lastHeartRate Float?
+  lastBodyTemp  Float?
+  lastStepCount Int?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("smart_collars")
+}
+
+model HealthAssessment {
+  id             String    @id @default(uuid())
+  livestockId    String
+  livestock      Livestock @relation(fields: [livestockId], references: [id], onDelete: Cascade)
+  imageUrl       String?
+  riskLevel      RiskLevel @default(NORMAL)
+  diagnosisNotes String?
+  symptoms       String[]
+  assessedAt     DateTime  @default(now())
+
+  @@map("health_assessments")
+}
+
+model Vaccination {
+  id               String    @id @default(uuid())
+  livestockId      String
+  livestock        Livestock @relation(fields: [livestockId], references: [id], onDelete: Cascade)
+  vaccineName      String
+  scheduledDate    DateTime
+  administeredDate DateTime?
+  isDone           Boolean   @default(false)
+  notes            String?
+
+  @@map("vaccinations")
+}
+
+model TeleConsultation {
+  id            String   @id @default(uuid())
+  farmerId      String
+  farmer        User     @relation("FarmerConsultations", fields: [farmerId], references: [id], onDelete: Cascade)
+  vetId         String
+  vet           User     @relation("VetConsultations", fields: [vetId], references: [id], onDelete: Cascade)
+  status        String   @default("PENDING")
+  scheduledTime DateTime
+  prescription  String?
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  @@map("tele_consultations")
+}
+
+model FinancialRecord {
+  id          String          @id @default(uuid())
+  farmerId    String
+  farmer      User            @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  type        TransactionType
+  amount      Float
+  category    String
+  description String?
+  date        DateTime        @default(now())
+
+  @@map("financial_records")
+}
+
+model CommunityPost {
+  id        String             @id @default(uuid())
+  authorId  String
+  author    User               @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  title     String
+  content   String
+  category  String             @default("GENERAL")
+  imageUrl  String?
+  likesCount Int               @default(0)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  comments  CommunityComment[]
+  likes     CommunityLike[]
+
+  @@map("community_posts")
+}
+
+model CommunityLike {
+  id        String        @id @default(uuid())
+  postId    String
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@unique([postId, userId])
+  @@map("community_likes")
+}
+
+model CommunityComment {
+  id        String        @id @default(uuid())
+  postId    String
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime      @default(now())
+
+  @@map("community_comments")
+}

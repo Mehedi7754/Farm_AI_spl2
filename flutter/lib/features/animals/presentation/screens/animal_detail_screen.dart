@@ -8,89 +8,97 @@ class AnimalDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7F6),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF2C3E50), size: 20),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text(
-          'প্রাণীর তথ্য',
-          style: TextStyle(color: Color(0xFF2C3E50), fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert_rounded, color: Color(0xFF2C3E50)),
-            onPressed: () {},
+      backgroundColor: const Color(0xFFF1F5F9),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(56),
+        child: AppBar(
+          backgroundColor: const Color(0xFF064E3B),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Colors.white),
+            onPressed: () => context.pop(),
           ),
-        ],
+          title: const Text(
+            'গবাদিপশুর বিস্তারিত প্রোফাইল',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.white),
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.share_rounded, color: Colors.white, size: 20),
+              onPressed: () {},
+            ),
+          ],
+        ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Animal Profile Card
+            // 1. CATTLE PROFILE BANNER CARD
             _buildProfileCard(),
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
 
-            // Smart Collar Control Button
+            // 2. SMART COLLAR TELEMETRY CARD
             _buildSmartCollarButton(context),
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
 
-            // Stats Grid
+            // 3. STATS GRID (MILK & BODY TEMP)
             Row(
               children: [
-                Expanded(child: _buildDetailStatCard(context, StringsBn.milkProduction, '১৮.৫ লিটার', '+০.২ লিটার (আজ)', Icons.water_drop_outlined, Colors.orange)),
-                const SizedBox(width: 16),
-                Expanded(child: _buildDetailStatCard(context, StringsBn.bodyTemp, '১০৬.২° F', 'স্বাভাবিক সীমা', Icons.thermostat_rounded, Colors.blue)),
+                Expanded(child: _buildDetailStatCard(context, StringsBn.milkProduction, '১৮.৫ লিটার/দিন', '+০.৫ লিটার (বৃদ্ধি)', Icons.water_drop_rounded, const Color(0xFF0284C7))),
+                const SizedBox(width: 10),
+                Expanded(child: _buildDetailStatCard(context, StringsBn.bodyTemp, '১০২.৪° F', 'স্বাভাবিক তাপমাত্রা ✓', Icons.thermostat_rounded, const Color(0xFF059669))),
               ],
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 12),
 
-            // Health History
+            // 4. HEALTH & VACCINATION HISTORY
             _buildHistorySection(context),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {},
-        backgroundColor: const Color(0xFF2E7D32),
-        child: const Icon(Icons.edit_note_rounded, color: Colors.white),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('গবাদিপশুর স্বাস্থ্য নোট তৈরি করা হয়েছে 📝'),
+              backgroundColor: Color(0xFF064E3B),
+            ),
+          );
+        },
+        backgroundColor: const Color(0xFF064E3B),
+        icon: const Icon(Icons.edit_note_rounded, color: Colors.white),
+        label: const Text('নোট যুক্ত করুন', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );
   }
 
   Widget _buildProfileCard() {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFE0E6ED)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFCBD5E1)),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2)),
         ],
       ),
       child: Row(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: Image.network(
-              'https://images.unsplash.com/photo-1546445317-29f4545e9d53?q=80&w=200&auto=format&fit=crop',
-              width: 90,
-              height: 90,
-              fit: BoxFit.cover,
+          Container(
+            width: 76,
+            height: 76,
+            decoration: BoxDecoration(
+              color: const Color(0xFFECFDF5),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFA7F3D0)),
             ),
+            child: const Icon(Icons.pets_rounded, color: Color(0xFF059669), size: 40),
           ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,29 +107,30 @@ class AnimalDetailScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'লক্ষ্মী',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF2C3E50)),
+                      'লালমনি (গাভী নং ১)',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE8F5E9),
+                        color: const Color(0xFFECFDF5),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text('সুস্থ', style: TextStyle(color: Color(0xFF2E7D32), fontSize: 10, fontWeight: FontWeight.bold)),
+                      child: const Text('সুস্থ (৯৮%)', style: TextStyle(color: Color(0xFF059669), fontSize: 10, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
+                const SizedBox(height: 2),
                 const Text(
-                  'হলস্টাইন ফ্রিজিয়ান',
-                  style: TextStyle(color: Color(0xFF7F8C8D), fontSize: 14),
+                  'জাত: হোলস্টাইন ফ্রিজিয়ান • বয়স: ৩.৫ বছর',
+                  style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Row(
                   children: [
-                    _buildMiniStat(StringsBn.animalWeight, '৪৫০ কেজি'),
-                    const SizedBox(width: 20),
-                    _buildMiniStat(StringsBn.animalAge, '৩ বছর ৪ মাস'),
+                    _buildMiniStat(StringsBn.animalWeight, '৩৮০ কেজি'),
+                    const SizedBox(width: 16),
+                    _buildMiniStat('স্মার্ট কলার আইডি', '#101-BD'),
                   ],
                 ),
               ],
@@ -135,51 +144,51 @@ class AnimalDetailScreen extends StatelessWidget {
   Widget _buildSmartCollarButton(BuildContext context) {
     return InkWell(
       onTap: () => context.push('/animals/collar'),
-      borderRadius: BorderRadius.circular(28),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
+            colors: [Color(0xFF064E3B), Color(0xFF047857)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF1B5E20).withValues(alpha: 0.2),
-              blurRadius: 15,
-              offset: const Offset(0, 8),
+              color: const Color(0xFF064E3B).withOpacity(0.2),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.wifi_tethering_rounded, color: Colors.white, size: 28),
+              child: const Icon(Icons.sensors_rounded, color: Colors.white, size: 24),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    StringsBn.smartCollarControl,
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 17),
+                    'স্মার্ট কলার টেলিমেট্রি ও কন্ট্রোল 📡',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   Text(
-                    StringsBn.realTimeTracking,
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                    'লাইভ জিপিএস লোকেশন ও হার্টরেট ট্র্যাকিং',
+                    style: TextStyle(color: Colors.white70, fontSize: 10),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 16),
+            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 14),
           ],
         ),
       ),
@@ -190,19 +199,19 @@ class AnimalDetailScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Color(0xFF95A5A6), fontSize: 10)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1B5E20))),
+        Text(label, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 9)),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF064E3B))),
       ],
     );
   }
 
   Widget _buildDetailStatCard(BuildContext context, String title, String value, String subtitle, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE0E6ED)),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFCBD5E1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -210,21 +219,21 @@ class AnimalDetailScreen extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: color, size: 18),
+                child: Icon(icon, color: color, size: 16),
               ),
-              const SizedBox(width: 8),
-              Expanded(child: Text(title, style: const TextStyle(fontSize: 12, color: Color(0xFF7F8C8D), fontWeight: FontWeight.w500))),
+              const SizedBox(width: 6),
+              Expanded(child: Text(title, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w600))),
             ],
           ),
-          const SizedBox(height: 16),
-          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2C3E50))),
-          const SizedBox(height: 4),
-          Text(subtitle, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
+          Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF0F172A))),
+          const SizedBox(height: 2),
+          Text(subtitle, style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -232,57 +241,49 @@ class AnimalDetailScreen extends StatelessWidget {
 
   Widget _buildHistorySection(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              StringsBn.healthHistory,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF34495E)),
-            ),
-            Text(
-              StringsBn.seeAll,
-              style: const TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold, fontSize: 13),
-            ),
-          ],
+        const Text(
+          'স্বাস্থ্য ও টিকাদানের ইতিহাস',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
         ),
-        const SizedBox(height: 16),
-        _buildHistoryItem(context, 'ব্রুসেলোসিস ভ্যাকসিন', '০৫ সেপ্টেম্বর, ২০২৪ • ডা. শরিফুল', Icons.vaccines_rounded, const Color(0xFFE3F2FD), Colors.blue),
-        _buildHistoryItem(context, 'নিয়মিত শারীরিক পরীক্ষা', '০২ সেপ্টেম্বর, ২০২৪ • সফল', Icons.assignment_turned_in_rounded, const Color(0xFFE8F5E9), Colors.green),
+        const SizedBox(height: 8),
+        _buildHistoryItem(context, 'খুরা রোগ (FMD) ২য় ডোজ সম্পন্ন', '১৫ মে, ২০২৬ • ডাঃ মোঃ আব্দুর রাজ্জাক', Icons.vaccines_rounded, const Color(0xFFECFDF5), const Color(0xFF059669)),
+        _buildHistoryItem(context, 'কৃমিনাশক ড্যাশবোর্ড চিকিৎসা', '০২ মে, ২০২৬ • সফল প্রয়োগ', Icons.assignment_turned_in_rounded, const Color(0xFFEFF6FF), const Color(0xFF0284C7)),
       ],
     );
   }
 
   Widget _buildHistoryItem(BuildContext context, String title, String subtitle, IconData icon, Color bgColor, Color iconColor) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE0E6ED)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFCBD5E1)),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: bgColor,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: iconColor, size: 20),
+            child: Icon(icon, color: iconColor, size: 18),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF2C3E50))),
-                Text(subtitle, style: const TextStyle(color: Color(0xFF95A5A6), fontSize: 12)),
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF0F172A))),
+                Text(subtitle, style: const TextStyle(color: Color(0xFF64748B), fontSize: 10)),
               ],
             ),
           ),
-          const Icon(Icons.check_circle_rounded, color: Color(0xFF2E7D32), size: 20),
+          const Icon(Icons.check_circle_rounded, color: Color(0xFF059669), size: 18),
         ],
       ),
     );

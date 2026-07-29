@@ -1,173 +1,266 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 
-class TeleVetScreen extends StatelessWidget {
+class TeleVetScreen extends StatefulWidget {
   const TeleVetScreen({super.key});
+
+  @override
+  State<TeleVetScreen> createState() => _TeleVetScreenState();
+}
+
+class _TeleVetScreenState extends State<TeleVetScreen> {
+  final List<Map<String, dynamic>> _vets = [
+    {
+      'name': 'ডাঃ মোঃ রফিকুল ইসলাম',
+      'title': 'সিনিয়র ভেটেরিনারি সার্জন (BAU)',
+      'exp': '১২ বছর অভিজ্ঞতা',
+      'fee': '৳৩০০',
+      'rating': 4.9,
+      'isOnline': true,
+      'specialty': 'গবাদিপশু প্রজনন ও দুগ্ধ রোগ বিশেষজ্ঞ',
+    },
+    {
+      'name': 'ডাঃ সুমাইয়া আক্তার',
+      'title': 'প্রাণিসম্পদ গবেষণা কর্মকর্তা',
+      'exp': '৮ বছর অভিজ্ঞতা',
+      'fee': '৳২৫০',
+      'rating': 4.8,
+      'isOnline': true,
+      'specialty': 'ছাগল ও ভেড়ার সংক্রামক ব্যাধি',
+    },
+    {
+      'name': 'ডাঃ কামরুল হাসান',
+      'title': 'সার্জন কর্মকর্তা (বিসিএস প্রাণিসম্পদ)',
+      'exp': '১৫ বছর অভিজ্ঞতা',
+      'fee': '৳৪০০',
+      'rating': 4.9,
+      'isOnline': false,
+      'specialty': 'জরুরি সার্জারি ও পুষ্টি বিশেষজ্ঞ',
+    },
+  ];
+
+  void _startVideoCall(String vetName) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0F172A),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 70,
+                height: 70,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF059669),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.videocam_rounded, color: Colors.white, size: 36),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                '$vetName এর সাথে ভিডিও কল যুক্ত হচ্ছে...',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              const Text('ক্যামেরা এবং মাইক্রোফোন চালু করা হয়েছে 🎥🎙️', style: TextStyle(color: Colors.white70, fontSize: 11)),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFDC2626),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.call_end_rounded, color: Colors.white, size: 16),
+                label: const Text('কল কেটে দিন', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FBF9),
-      appBar: AppBar(
-        title: const Text(
-          'টেলি-ভেট সেবা',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1A1A1A)),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Color(0xFF1A1A1A)),
-          onPressed: () => Navigator.pop(context),
+      backgroundColor: const Color(0xFFF1F5F9),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(56),
+        child: AppBar(
+          backgroundColor: const Color(0xFF064E3B),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Colors.white),
+            onPressed: () => context.pop(),
+          ),
+          title: const Text(
+            'অনলাইন টেলি-ভেটেরিনারি (TeleVet)',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.white),
+          ),
         ),
       ),
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHeroBanner(),
-            const SizedBox(height: 32),
-            _buildSectionHeader(context, 'উপলব্ধ ডাক্তারগণ', '৫ জন অনলাইন'),
-            const SizedBox(height: 16),
-            _buildDoctorCard(context, 'ডাঃ মোঃ আব্দুর রহমান', 'ভেটেরিনারি সার্জন', 'পাবনা ভেটেরিনারি হসপিটাল', '৪.৯'),
-            _buildDoctorCard(context, 'ডাঃ ফাতেমা খাতুন', 'এনিমেল নিউট্রিশনিস্ট', 'ঢাকা এনিমেল ক্লিনিক', '৪.৮'),
-            _buildDoctorCard(context, 'ডাঃ কামরুল হাসান', 'সার্জন ও মেডিসিন', 'রাজশাহী কৃষি হসপিটাল', '৪.৭'),
-            const SizedBox(height: 40),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeroBanner() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF003300), Color(0xFF004D40)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(color: const Color(0xFF003300).withValues(alpha: 0.2), blurRadius: 20, offset: const Offset(0, 10)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'ঘরে বসেই পরামর্শ নিন',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.5),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'অভিজ্ঞ ভেটেরিনারি ডাক্তারদের সাথে সরাসরি কথা বলুন এবং আপনার প্রাণীর সুস্বাস্থ্য নিশ্চিত করুন।',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 14, height: 1.5),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: () {},
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: const Color(0xFF003300),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              elevation: 0,
+            // 1. TELEVET HERO BANNER WITH INSTANT CALL TRIGGER
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF064E3B), Color(0xFF047857)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('সরাসরি ভিডিও কলে ডাক্তারের পরামর্শ নিন 🩺', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        const Text('২৪ ঘণ্টা বিশেষজ্ঞ ভেটেরিনারি সার্জনদের সাথে সরাসরি ভিডিও কথা বলুন', style: TextStyle(color: Colors.white70, fontSize: 10)),
+                        const SizedBox(height: 12),
+                        ElevatedButton.icon(
+                          onPressed: () => _startVideoCall('ডাঃ মোঃ রফিকুল ইসলাম'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFDE047),
+                            foregroundColor: const Color(0xFF064E3B),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          icon: const Icon(Icons.video_call_rounded, size: 18),
+                          label: const Text('জরুরি ভিডিও কল (৳৩০০)', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Icon(Icons.medical_services_rounded, color: Colors.white38, size: 60),
+                ],
+              ),
             ),
-            child: const Text('জরুরি কল', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.1, end: 0);
-  }
+            const SizedBox(height: 14),
 
-  Widget _buildSectionHeader(BuildContext context, String title, String badge) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A), letterSpacing: -0.5),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(color: const Color(0xFFE8F5E9), borderRadius: BorderRadius.circular(8)),
-          child: Text(
-            badge,
-            style: const TextStyle(fontSize: 11, color: Color(0xFF004D40), fontWeight: FontWeight.bold),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDoctorCard(BuildContext context, String name, String specialty, String hospital, String rating) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 15, offset: const Offset(0, 8)),
-        ],
-        border: Border.all(color: const Color(0xFFF0F4F7)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FBF9),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Icon(Icons.person_rounded, color: Color(0xFF004D40), size: 36),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            // 2. ONLINE VET DOCTORS LIST HEADER
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1A1A))),
-                const SizedBox(height: 4),
-                Text(specialty, style: const TextStyle(color: Color(0xFF004D40), fontSize: 12, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.location_on_rounded, color: Colors.grey, size: 12),
-                    const SizedBox(width: 4),
-                    Text(hospital, style: const TextStyle(color: Colors.grey, fontSize: 11)),
-                  ],
+                const Text('অনলাইন ডাক্তারদের তালিকা', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF0F172A))),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(10)),
+                  child: const Text('২ জন সক্রিয়', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF059669))),
                 ),
               ],
             ),
-          ),
-          Column(
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
-                  const SizedBox(width: 2),
-                  Text(rating, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Container(
-                decoration: const BoxDecoration(color: Color(0xFF004D40), shape: BoxShape.circle),
-                child: IconButton(
-                  icon: const Icon(Icons.call_rounded, color: Colors.white, size: 18),
-                  onPressed: () {},
-                  constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                ),
-              ),
-            ],
-          ),
-        ],
+            const SizedBox(height: 8),
+
+            // 3. VET DOCTORS CARDS
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _vets.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final vet = _vets[index];
+                final isOnline = vet['isOnline'] as bool;
+
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFCBD5E1)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Stack(
+                            children: [
+                              CircleAvatar(
+                                radius: 22,
+                                backgroundColor: const Color(0xFFE2E8F0),
+                                child: Text(vet['name'].toString().substring(3, 4), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF064E3B))),
+                              ),
+                              Positioned(
+                                bottom: 0,
+                                right: 0,
+                                child: Container(
+                                  width: 12,
+                                  height: 12,
+                                  decoration: BoxDecoration(
+                                    color: isOnline ? const Color(0xFF059669) : const Color(0xFF94A3B8),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 2),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(vet['name'] as String, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A))),
+                                Text(vet['title'] as String, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                                Text(vet['specialty'] as String, style: const TextStyle(fontSize: 9, color: Color(0xFF059669), fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(vet['fee'] as String, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF064E3B))),
+                              Row(
+                                children: [
+                                  const Icon(Icons.star_rounded, color: Color(0xFFEAB308), size: 14),
+                                  Text('${vet['rating']}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(vet['exp'] as String, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                          ElevatedButton.icon(
+                            onPressed: isOnline ? () => _startVideoCall(vet['name'] as String) : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF064E3B),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Icons.videocam_rounded, color: Colors.white, size: 14),
+                            label: Text(
+                              isOnline ? 'ভিডিও কল করুন' : 'অফলাইন',
+                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

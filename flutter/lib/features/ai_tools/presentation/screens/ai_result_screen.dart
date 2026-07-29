@@ -31,9 +31,9 @@ class AIResultScreen extends StatelessWidget {
               padding: const EdgeInsets.all(24),
               width: double.infinity,
               decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.1),
+                color: statusColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                border: Border.all(color: statusColor.withOpacity(0.3)),
               ),
               child: Column(
                 children: [
@@ -167,7 +167,7 @@ class AIResultScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppTheme.primaryColor.withValues(alpha: 0.1),
+              color: AppTheme.primaryColor.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.check, size: 16, color: AppTheme.primaryColor),

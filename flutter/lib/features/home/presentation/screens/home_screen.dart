@@ -1,283 +1,530 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../../core/l10n/strings_bn.dart';
+import '../../../utilities/presentation/providers/weather_provider.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../animals/presentation/providers/livestock_provider.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  @override
   Widget build(BuildContext context) {
+    final weatherState = ref.watch(weatherProvider);
+    final authState = ref.watch(authProvider);
+    final livestockState = ref.watch(livestockProvider);
+
+    final farmName = authState.user?['name'] != null ? '${authState.user!['name']}-এর খামার' : 'আমার খামার';
+    final weatherData = weatherState.data;
+    final temp = (weatherData?['currentTemperature'] as num?)?.toDouble() ?? 31.0;
+    
+    final animalCount = livestockState.maybeWhen(
+      data: (list) => list.length,
+      orElse: () => 0,
+    );
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFB),
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          _buildAppBar(context),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCombinedNewsWeather(),
-                  const SizedBox(height: 32),
-                  const Text(
-                    'আপনার জন্য সেবা',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A1A1A),
-                      letterSpacing: -0.5,
-                    ),
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        toolbarHeight: 68,
+        titleSpacing: 20,
+        surfaceTintColor: Colors.white,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Container(color: const Color(0xFFF1F5F9), height: 1.0),
+        ),
+        title: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF10B981), Color(0xFF047857)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(13),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF059669).withValues(alpha: 0.25),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
                   ),
-                  const SizedBox(height: 16),
-                  _buildImageFeatureGrid(context),
-                  const SizedBox(height: 120), // Extra space for custom nav
                 ],
               ),
+              child: const Center(
+                child: Icon(Icons.eco_rounded, color: Colors.white, size: 24),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'FarmAI',
+                      style: TextStyle(
+                        color: Color(0xFF0F172A),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 20,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFA7F3D0)),
+                      ),
+                      child: const Text(
+                        'স্মার্ট খামার',
+                        style: TextStyle(color: Color(0xFF047857), fontSize: 10, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  farmName,
+                  style: const TextStyle(color: Color(0xFF64748B), fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          GestureDetector(
+            onTap: () {
+              ref.read(authProvider.notifier).logout();
+              context.go('/login');
+            },
+            child: Container(
+              margin: const EdgeInsets.only(right: 20),
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Icon(Icons.logout_rounded, color: Color(0xFF64748B), size: 18),
             ),
           ),
         ],
       ),
+      body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 30),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 1. Premium Hero Voice Assistance Banner Card
+            _buildPremiumVoiceCard(context),
+            const SizedBox(height: 16),
+
+            // 2. Telemetry KPI Bar
+            _buildKpiBar(context, '${temp.round()}°C', '$animalCount টি'),
+            const SizedBox(height: 24),
+
+            // 3. Khamaar Seba Section Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: const [
+                    Icon(Icons.grid_view_rounded, color: Color(0xFF047857), size: 22),
+                    SizedBox(width: 10),
+                    Text(
+                      'খামার সেবাসমূহ',
+                      style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0F172A),
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    '৮ টি সেবামূলক মডিউল',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+                  ),
+                ),
+              ],
+            ).animate().fadeIn(duration: 350.ms),
+
+            const SizedBox(height: 16),
+
+            // 4. Ultra-Premium Cohesive Module Cards Grid
+            _buildPremiumCohesiveServiceGrid(context),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildAppBar(BuildContext context) {
-    return SliverAppBar(
-      expandedHeight: 100.0,
-      floating: false,
-      pinned: true,
-      elevation: 0,
-      backgroundColor: const Color(0xFF003300),
-      flexibleSpace: FlexibleSpaceBar(
-        titlePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        centerTitle: false,
-        title: Row(
+  Widget _buildPremiumVoiceCard(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.push('/ai/voice'),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF047857), Color(0xFF065F46)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF047857).withValues(alpha: 0.28),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Row(
           children: [
-            const Icon(Icons.agriculture_rounded, color: Colors.white, size: 24),
-            const SizedBox(width: 10),
-            Text(
-              StringsBn.appName,
-              style: const TextStyle(
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
                 color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-                letterSpacing: -0.5,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.mic_rounded, color: Color(0xFF047857), size: 24),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'কথা বলে সেবা নিন',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.2,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'পশুর যে কোনো লক্ষণ বা সমস্যা মুখে বলুন',
+                    style: TextStyle(
+                      color: Color(0xFFA7F3D0),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                children: [
+                  Text(
+                    'কথা বলুন',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  SizedBox(width: 3),
+                  Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 9),
+                ],
               ),
             ),
           ],
         ),
-        background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF003300), Color(0xFF004D40)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+      ),
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.05, end: 0);
+  }
+
+  Widget _buildKpiBar(BuildContext context, String temp, String animalCount) {
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0x0A0F172A),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
+        ],
+      ),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        children: [
+          _buildKpiTile(
+            icon: Icons.wb_sunny_rounded,
+            iconColor: const Color(0xFFD97706),
+            val: temp,
+            label: 'আবহাওয়া',
+            onTap: () => context.push('/weather'),
+          ),
+          _buildKpiDivider(),
+          _buildKpiTile(
+            icon: Icons.pets_rounded,
+            iconColor: const Color(0xFF047857),
+            val: animalCount,
+            label: 'গবাদিপশু',
+            onTap: () => context.push('/animals'),
+          ),
+          _buildKpiDivider(),
+          _buildKpiTile(
+            icon: Icons.water_drop_rounded,
+            iconColor: const Color(0xFF0284C7),
+            val: '-- লি.',
+            label: 'দৈনিক দুধ',
+            onTap: () => context.push('/accounting'),
+          ),
+          _buildKpiDivider(),
+          _buildKpiTile(
+            icon: Icons.trending_up_rounded,
+            iconColor: const Color(0xFF16A34A),
+            val: '৳--',
+            label: 'মাসের লাভ',
+            onTap: () => context.push('/accounting'),
+          ),
+          _buildKpiDivider(),
+          _buildKpiTile(
+            icon: Icons.sensors_rounded,
+            iconColor: const Color(0xFF2563EB),
+            val: 'সক্রিয়',
+            label: 'স্মার্ট কলার',
+            onTap: () => context.push('/collar'),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 450.ms, delay: 100.ms);
+  }
+
+  Widget _buildKpiTile({
+    required IconData icon,
+    required Color iconColor,
+    required String val,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: [
+            Icon(icon, color: iconColor, size: 20),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(val, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF0F172A))),
+                Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+              ],
+            ),
+          ],
         ),
       ),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.notifications_none_rounded, color: Colors.white),
-          onPressed: () {},
-        ),
-        const SizedBox(width: 8),
-      ],
     );
   }
 
-  Widget _buildCombinedNewsWeather() {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF1B5E20).withOpacity(0.2),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: -20,
-            top: -20,
-            child: Icon(
-              Icons.cloud_queue_rounded,
-              size: 120,
-              color: Colors.white.withValues(alpha: 0.1),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        'খামার সংবাদ',
-                        style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        const Icon(Icons.wb_sunny_rounded, color: Colors.orangeAccent, size: 16),
-                        const SizedBox(width: 6),
-                        const Text(
-                          '৩২°সে',
-                          style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'বগুড়ায় গরুর উন্নত জাত নিয়ে\nনতুন কৃষি প্রচারণা শুরু',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    height: 1.3,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    const Text(
-                      'বিস্তারিত জানুন',
-                      style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(Icons.arrow_forward_rounded, color: Colors.white.withValues(alpha: 0.7), size: 14),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    ).animate().fadeIn(duration: 800.ms).slideY(begin: 0.1, end: 0);
+  Widget _buildKpiDivider() {
+    return Container(margin: const EdgeInsets.symmetric(vertical: 8), width: 1, color: const Color(0xFFF1F5F9));
   }
 
-  Widget _buildImageFeatureGrid(BuildContext context) {
-    final features = [
-      {'icon': Icons.health_and_safety_rounded, 'label': StringsBn.aiSymptom, 'color': const Color(0xFFE3F2FD), 'iconColor': const Color(0xFF1976D2), 'route': '/ai/symptom'},
-      {'icon': Icons.mic_rounded, 'label': StringsBn.voiceChat, 'color': const Color(0xFFF3E5F5), 'iconColor': const Color(0xFF7B1FA2), 'route': '/ai/voice'},
-      {'icon': Icons.local_hospital_rounded, 'label': StringsBn.hospitalFinder, 'color': const Color(0xFFFFEBEE), 'iconColor': const Color(0xFFD32F2F), 'route': '/hospital'},
-      {'icon': Icons.notifications_active_rounded, 'label': StringsBn.vaccineReminder, 'color': const Color(0xFFE8F5E9), 'iconColor': const Color(0xFF388E3C), 'route': '/reminders'},
-      {'icon': Icons.medical_services_rounded, 'label': StringsBn.medicine, 'color': const Color(0xFFFFF3E0), 'iconColor': const Color(0xFFF57C00), 'route': '/medicine'},
-      {'icon': Icons.wb_sunny_rounded, 'label': StringsBn.weather, 'color': const Color(0xFFE0F7FA), 'iconColor': const Color(0xFF0097A7), 'route': '/weather'},
-      {'icon': Icons.account_balance_wallet_rounded, 'label': StringsBn.accounting, 'color': const Color(0xFFF1F8E9), 'iconColor': const Color(0xFF689F38), 'route': '/accounting'},
-      {'icon': Icons.video_call_rounded, 'label': StringsBn.teleVet, 'color': const Color(0xFFEFEBE9), 'iconColor': const Color(0xFF5D4037), 'route': '/televet'},
+  Widget _buildPremiumCohesiveServiceGrid(BuildContext context) {
+    final list = [
+      {
+        'title': StringsBn.aiSymptom,
+        'sub': 'লক্ষণ ও রোগ বিশ্লেষণ',
+        'icon': Icons.biotech_rounded,
+        'accentColor': const Color(0xFF047857),
+        'badgeBg': const Color(0xFFECFDF5),
+        'route': '/ai/symptom',
+      },
+      {
+        'title': StringsBn.cattleManagement,
+        'sub': 'পশুর তালিকা ও স্বাস্থ্য',
+        'icon': Icons.pets_rounded,
+        'accentColor': const Color(0xFF2563EB),
+        'badgeBg': const Color(0xFFEFF6FF),
+        'route': '/animals',
+      },
+      {
+        'title': StringsBn.hospitalFinder,
+        'sub': 'নিকটস্থ হাসপাতাল ম্যাপ',
+        'icon': Icons.local_hospital_rounded,
+        'accentColor': const Color(0xFFDC2626),
+        'badgeBg': const Color(0xFFFEF2F2),
+        'route': '/hospital',
+      },
+      {
+        'title': StringsBn.vaccineReminder,
+        'sub': 'টিকা ও কৃমিনাশক নোটিশ',
+        'icon': Icons.vaccines_rounded,
+        'accentColor': const Color(0xFF9333EA),
+        'badgeBg': const Color(0xFFFAF5FF),
+        'route': '/reminders',
+      },
+      {
+        'title': StringsBn.accounting,
+        'sub': 'দুধ বিক্রি ও আয়-ব্যয়',
+        'icon': Icons.payments_rounded,
+        'accentColor': const Color(0xFFD97706),
+        'badgeBg': const Color(0xFFFEFCE8),
+        'route': '/accounting',
+      },
+      {
+        'title': StringsBn.weather,
+        'sub': 'বৃষ্টি ও আবহাওয়া পূর্বাভাস',
+        'icon': Icons.cloud_sync_rounded,
+        'accentColor': const Color(0xFF0284C7),
+        'badgeBg': const Color(0xFFF0F9FF),
+        'route': '/weather',
+      },
+      {
+        'title': StringsBn.teleVet,
+        'sub': 'ডাক্তারের সাথে ভিডিও কল',
+        'icon': Icons.video_call_rounded,
+        'accentColor': const Color(0xFFDB2777),
+        'badgeBg': const Color(0xFFFDF2F8),
+        'route': '/televet',
+      },
+      {
+        'title': StringsBn.medicine,
+        'sub': 'ওষুধের বিবরণ ও মাত্রা',
+        'icon': Icons.medication_rounded,
+        'accentColor': const Color(0xFFEA580C),
+        'badgeBg': const Color(0xFFFFF7ED),
+        'route': '/medicine',
+      },
     ];
 
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
+      itemCount: list.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: 1.2,
+        crossAxisSpacing: 14,
+        mainAxisSpacing: 14,
+        childAspectRatio: 1.10,
       ),
-      itemCount: features.length,
-      itemBuilder: (context, index) {
-        final feature = features[index];
-        return _buildFeatureCard(
-          context,
-          feature['icon'] as IconData,
-          feature['label'] as String,
-          feature['color'] as Color,
-          feature['iconColor'] as Color,
-          feature['route'] as String,
-          index,
-        );
-      },
-    );
-  }
+      itemBuilder: (context, idx) {
+        final item = list[idx];
+        final accentColor = item['accentColor'] as Color;
+        final badgeBg = item['badgeBg'] as Color;
 
-  Widget _buildFeatureCard(BuildContext context, IconData icon, String label, Color bgColor, Color iconColor, String route, int index) {
-    return GestureDetector(
-      onTap: () => context.push(route),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 15,
-              offset: const Offset(0, 8),
-            ),
-          ],
-          border: Border.all(color: const Color(0xFFF0F4F7), width: 1),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: Stack(
-            children: [
-              Positioned(
-                right: -15,
-                bottom: -15,
-                child: Icon(
-                  icon,
-                  size: 80,
-                  color: iconColor.withValues(alpha: 0.05),
+        return GestureDetector(
+          onTap: () => context.push(item['route'] as String),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0x080F172A),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: badgeBg,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    item['icon'] as IconData,
+                    color: accentColor,
+                    size: 25,
+                  ),
+                ),
+                Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: bgColor,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(
-                        icon,
-                        color: iconColor,
-                        size: 24,
-                      ),
-                    ),
                     Text(
-                      label,
+                      item['title'] as String,
                       style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1A1A1A),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0F172A),
                         letterSpacing: -0.3,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      item['sub'] as String,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF64748B),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ),
-    ).animate().fadeIn(duration: 500.ms, delay: (index * 60).ms).slideY(begin: 0.1, end: 0);
+        ).animate().fadeIn(duration: 400.ms, delay: (idx * 40).ms).slideY(begin: 0.08, end: 0, curve: Curves.easeOutCubic);
+      },
+    );
   }
 }

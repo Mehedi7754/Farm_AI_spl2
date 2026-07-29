@@ -42,6 +42,7 @@ class StringsBn {
   static const String weather = 'আবহাওয়া';
   static const String accounting = 'হিসাব';
   static const String teleVet = 'টেলিভেট';
+  static const String cattleManagement = 'গবাদিপশু ব্যবস্থাপনা';
   
   // Animal Feature
   static const String myAnimals = 'আমার প্রাণীসমূহ';
