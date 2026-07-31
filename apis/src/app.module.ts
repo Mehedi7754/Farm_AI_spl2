@@ -11,6 +11,9 @@ import { WeatherModule } from './modules/weather/weather.module';
 import { VaccinationsModule } from './modules/vaccinations/vaccinations.module';
 import { FinancialRecordsModule } from './modules/financial-records/financial-records.module';
 import { CommunityModule } from './modules/community/community.module';
+import { VetProfilesModule } from './modules/vet-profiles/vet-profiles.module';
+import { WebrtcModule } from './modules/webrtc/webrtc.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -26,6 +29,9 @@ import { CommunityModule } from './modules/community/community.module';
     VaccinationsModule,
     FinancialRecordsModule,
     CommunityModule,
+    VetProfilesModule,
+    WebrtcModule,
+    ChatModule,
   ],
   controllers: [],
   providers: [],

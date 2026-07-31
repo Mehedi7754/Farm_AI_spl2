@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../core/network/api_client.dart';
 
+import '../../providers/community_provider.dart';
+
 final communityCategoryFilterProvider = StateProvider<String>((ref) => 'সবগুলো');
 
 class CommunityScreen extends ConsumerStatefulWidget {
@@ -17,120 +19,10 @@ class CommunityScreen extends ConsumerStatefulWidget {
 class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   final ImagePicker _picker = ImagePicker();
 
-  bool _isLoading = false;
-  List<Map<String, dynamic>> _posts = [
-    {
-      'id': '1',
-      'title': 'গাভীর দুধের শর্করা ও প্রোটিন বৃদ্ধির ঘরোয়া উপায়',
-      'content': 'আপনার খামারের দুগ্ধজাত গাভীর দুধের পরিমাণ ও ফ্যাটের ঘনত্ব বাড়াতে প্রতিদিন ঘাসের সাথে ১.৫ কেজি দানাদার খাদ্য ও খৈল মেশান। এতে দুধের মান আশাতীত বৃদ্ধি পায়।',
-      'category': 'টিপস',
-      'authorName': 'ফারমার রহিম উল্লাহ',
-      'authorLocation': 'বগুড়া সদর খামার',
-      'isVerified': true,
-      'likes': 24,
-      'isLiked': false,
-      'comments': [
-        {'id': 'c1', 'authorName': 'ডাঃ সালাহউদ্দিন (ভেটেরিনারি)', 'content': 'খুবই উপকারী উপদেশ! পাশাপাশি পর্যাপ্ত পরিষ্কার পানি নিশ্চিত করতে হবে।'},
-        {'id': 'c2', 'authorName': 'মোঃ খলিল', 'content': 'আমি এই ফর্মুলা ব্যবহার করে দিনে ৩ লিটার দুধ বেশি পাচ্ছি।'},
-      ],
-      'imageUrl': null,
-      'createdAt': '২ ঘণ্টা আগে',
-    },
-    {
-      'id': '2',
-      'title': 'বর্ষাকালে খুরা রোগ (FMD) প্রতিরোধে খামারিদের করণীয়',
-      'content': 'বর্ষা মৌসুমে খামারের মেঝেসহ শেড শুকনো রাখুন। নিয়মিত ব্লিচিং পাউডার স্প্রে করুন এবং ভ্যাকসিনের ১ম ও ২য় ডোজ সঠিক সময়ে সম্পন্ন করুন।',
-      'category': 'স্বাস্থ্য',
-      'authorName': 'ডাঃ তানজিল হোসেন',
-      'authorLocation': 'পশু চিকিৎসক',
-      'isVerified': true,
-      'likes': 42,
-      'isLiked': true,
-      'comments': [
-        {'id': 'c3', 'authorName': 'আব্দুল জলিল', 'content': 'আমাদের এলাকায় এখন খুরা রোগের প্রাদুর্ভাব চলছে, সবাই সচেতন থাকুন।'},
-      ],
-      'imageUrl': null,
-      'createdAt': '৫ ঘণ্টা আগে',
-    },
-    {
-      'id': '3',
-      'title': 'ব্ল্যাক বেঙ্গল ছাগলের নতুন বাচ্চার খামার ব্যবস্থাপনা',
-      'content': 'আজ সকালে ছাগল দুটি সুস্থ বাচ্চা প্রসব করেছে। মা ও বাচ্চা দুটোই সুস্থ আছে। প্রথম কয়েক দিন কোলস্ট্রাম শালদুধ খাওয়ানো অত্যন্ত জরুরি।',
-      'category': 'গল্প',
-      'authorName': 'নাসিমা বেগম',
-      'authorLocation': 'পাবনা ডেইরি খামার',
-      'isVerified': false,
-      'likes': 68,
-      'isLiked': false,
-      'comments': [
-        {'id': 'c4', 'authorName': 'মাশরাফি', 'content': 'উৎকৃষ্ট ব্যবস্থাপনা! অভিনন্দন।'},
-      ],
-      'imageUrl': null,
-      'createdAt': '১ দিন আগে',
-    },
-  ];
-
   @override
   void initState() {
     super.initState();
-    _loadApiPosts();
-  }
-
-  int _parseLikesCount(dynamic likes) {
-    if (likes == null) return 0;
-    if (likes is int) return likes;
-    if (likes is num) return likes.toInt();
-    if (likes is List) return likes.length;
-    return 0;
-  }
-
-  List<Map<String, dynamic>> _parseCommentsList(dynamic comments) {
-    if (comments == null) return [];
-    if (comments is List) {
-      return comments.map<Map<String, dynamic>>((c) {
-        if (c is Map) return Map<String, dynamic>.from(c);
-        return {'content': c.toString(), 'authorName': 'খামারি সদস্য'};
-      }).toList();
-    }
-    return [];
-  }
-
-  Future<void> _loadApiPosts() async {
-    setState(() => _isLoading = true);
-    try {
-      final fetched = await ApiClient.getCommunityPosts();
-      if (fetched.isNotEmpty) {
-        setState(() {
-          for (final p in fetched) {
-            final id = p['id']?.toString() ?? UniqueKey().toString();
-            // Prevent duplicate insertion
-            if (_posts.any((item) => item['id'] == id)) continue;
-
-            final rawLikes = p['likes'] ?? p['likesCount'];
-            final rawComments = p['comments'];
-
-            _posts.add({
-              'id': id,
-              'title': p['title']?.toString() ?? 'খামারি আপডেট',
-              'content': p['content']?.toString() ?? '',
-              'category': p['category']?.toString() ?? 'টিপস',
-              'authorName': p['author']?['name']?.toString() ?? p['authorName']?.toString() ?? 'খামারি সদস্য',
-              'authorLocation': p['author']?['location']?.toString() ?? 'ফার্ম এআই খামার',
-              'isVerified': p['author']?['isDoctor'] == true,
-              'likes': _parseLikesCount(rawLikes),
-              'isLiked': p['isLiked'] == true,
-              'comments': _parseCommentsList(rawComments),
-              'imageUrl': p['imageUrl']?.toString(),
-              'createdAt': 'সাম্প্রতিক পোস্ট',
-            });
-          }
-        });
-      }
-    } catch (e) {
-      debugPrint('Community API fetch fallback: $e');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+    // API posts are now loaded automatically via Riverpod's communityPostsProvider.
   }
 
   void _showCreatePostModal() {
@@ -348,13 +240,6 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                                   // 1. Prevent duplicate submission
                                   setModalState(() => isSubmitting = true);
 
-                                  String? uploadedUrl;
-                                  if (selectedImageFile != null) {
-                                    try {
-                                      uploadedUrl = await ApiClient.uploadImage(selectedImageFile!.path);
-                                    } catch (_) {}
-                                  }
-
                                   final postId = DateTime.now().millisecondsSinceEpoch.toString();
 
                                   final newPost = {
@@ -369,25 +254,31 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                                     'isLiked': false,
                                     'comments': <Map<String, dynamic>>[],
                                     'imageFile': selectedImageFile,
-                                    'imageUrl': uploadedUrl,
+                                    'imageUrl': null,
                                     'createdAt': 'মাত্র প্রকাশিত',
                                   };
 
-                                  // Duplicate check before adding
-                                  setState(() {
-                                    if (!_posts.any((p) => p['id'] == postId)) {
-                                      _posts.insert(0, newPost);
-                                    }
-                                  });
+                                  // Optimistic UI Update via Provider
+                                  ref.read(communityPostsProvider.notifier).addOptimisticPost(newPost);
 
-                                  try {
-                                    await ApiClient.createCommunityPost(
-                                      title: titleCtrl.text.trim(),
-                                      content: contentCtrl.text.trim(),
-                                      category: selectedCategory,
-                                      imageUrl: uploadedUrl,
-                                    );
-                                  } catch (_) {}
+                                  if (ctx.mounted) Navigator.pop(ctx);
+
+                                  Future.microtask(() async {
+                                    String? uploadedUrl;
+                                    if (selectedImageFile != null) {
+                                      try {
+                                        uploadedUrl = await ApiClient.uploadImage(selectedImageFile!.path);
+                                      } catch (_) {}
+                                    }
+                                    try {
+                                      await ApiClient.createCommunityPost(
+                                        title: titleCtrl.text.trim(),
+                                        content: contentCtrl.text.trim(),
+                                        category: selectedCategory,
+                                        imageUrl: uploadedUrl,
+                                      );
+                                    } catch (_) {}
+                                  });
 
                                   if (ctx.mounted) Navigator.pop(ctx);
                                   if (mounted) {
@@ -467,7 +358,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
 
   void _showCommentsModal(Map<String, dynamic> post) {
     final commentCtrl = TextEditingController();
-    final List<Map<String, dynamic>> comments = _parseCommentsList(post['comments']);
+    final List<Map<String, dynamic>> comments = post['comments'] == null ? [] : List<Map<String, dynamic>>.from(post['comments']);
 
     showModalBottomSheet(
       context: context,
@@ -650,11 +541,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
   @override
   Widget build(BuildContext context) {
     final selectedCategoryFilter = ref.watch(communityCategoryFilterProvider);
-
-    final filteredPosts = _posts.where((p) {
-      if (selectedCategoryFilter == 'সবগুলো') return true;
-      return p['category'] == selectedCategoryFilter;
-    }).toList();
+    final asyncPosts = ref.watch(communityPostsProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -742,28 +629,50 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
 
           // 2. COMMUNITY POSTS FEED
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF047857)))
-                : filteredPosts.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'এই ক্যাটাগরিতে কোনো পোস্ট নেই',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _loadApiPosts,
-                        color: const Color(0xFF047857),
-                        child: ListView.separated(
-                          physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.all(16),
-                          itemCount: filteredPosts.length,
-                          separatorBuilder: (context, index) => const SizedBox(height: 14),
-                          itemBuilder: (context, index) {
-                            final post = filteredPosts[index];
+            child: asyncPosts.when(
+              loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFF047857))),
+              error: (err, stack) => Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.red, size: 40),
+                    const SizedBox(height: 10),
+                    const Text('ডেটা লোড করতে সমস্যা হয়েছে', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                    TextButton(
+                      onPressed: () => ref.read(communityPostsProvider.notifier).refreshPosts(),
+                      child: const Text('আবার চেষ্টা করুন'),
+                    )
+                  ],
+                ),
+              ),
+              data: (posts) {
+                final filteredPosts = posts.where((p) {
+                  if (selectedCategoryFilter == 'সবগুলো') return true;
+                  return p['category'] == selectedCategoryFilter;
+                }).toList();
+
+                if (filteredPosts.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'এই ক্যাটাগরিতে কোনো পোস্ট নেই',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+                    ),
+                  );
+                }
+
+                return RefreshIndicator(
+                  onRefresh: () => ref.read(communityPostsProvider.notifier).refreshPosts(),
+                  color: const Color(0xFF047857),
+                  child: ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                    padding: const EdgeInsets.all(16),
+                    itemCount: filteredPosts.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 14),
+                    itemBuilder: (context, index) {
+                      final post = filteredPosts[index];
                             final isLiked = post['isLiked'] == true;
-                            final likesCount = _parseLikesCount(post['likes']);
-                            final commentsList = _parseCommentsList(post['comments']);
+                            final likesCount = post['likes'] ?? 0;
+                            final commentsList = post['comments'] ?? [];
                             final isVerified = post['isVerified'] == true;
 
                             final authorName = (post['authorName'] as String).isNotEmpty ? post['authorName'] as String : 'ফার্ম সদস্য';
@@ -998,7 +907,9 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                             );
                           },
                         ),
-                      ),
+                      );
+              },
+            ),
           ),
         ],
       ),

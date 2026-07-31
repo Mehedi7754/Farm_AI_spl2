@@ -18,14 +18,14 @@ class ApiClient {
   static String get baseUrl {
     try {
       if (dotenv.isInitialized) {
-        return dotenv.env['API_BASE_URL'] ?? 'http://3.27.235.49:3000';
+        return dotenv.env['API_BASE_URL'] ?? 'http://farm-ai-backend.163.227.239.97.sslip.io';
       }
     } catch (_) {}
-    return 'http://3.27.235.49:3000';
+    return 'http://farm-ai-backend.163.227.239.97.sslip.io';
   }
 
   static const String sageMakerEndpointUrl =
-      'https://runtime.sagemaker.us-east-1.amazonaws.com/endpoints/farmai-cow-disease-gpu-endpoint/invocations';
+      'https://runtime.sagemaker.us-east-1.amazonaws.com/endpoints/alvee-farmai-cow-disease-endpoint/invocations';
 
   static String? _authToken;
   static Map<String, dynamic>? _currentUser;
@@ -102,6 +102,7 @@ class ApiClient {
     required String password,
     String? phone,
     String? location,
+    String role = 'FARMER',
   }) async {
     final response = await http.post(
       Uri.parse('$baseUrl/users/register'),
@@ -110,6 +111,7 @@ class ApiClient {
         'name': name,
         'email': email,
         'password': password,
+        'role': role,
         if (phone != null && phone.isNotEmpty) 'phoneNumber': phone,
         if (location != null && location.isNotEmpty) 'location': location,
       }),
@@ -251,9 +253,28 @@ class ApiClient {
         if (species != null) 'species': species,
         if (imageUrl != null) 'imageUrl': imageUrl,
       }),
-    ).timeout(const Duration(seconds: 10));
+    ).timeout(const Duration(seconds: 15));
 
     return _processResponse(response);
+  }
+
+  static Future<List<Map<String, dynamic>>> getMedicineInfo(String query, {String? disease, String? symptoms, String? species}) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/ai-tools/medicine-info'),
+      headers: _headers,
+      body: jsonEncode({
+        'query': query,
+        if (disease != null) 'disease': disease,
+        if (symptoms != null) 'symptoms': symptoms,
+        if (species != null) 'species': species,
+      }),
+    ).timeout(const Duration(seconds: 20));
+
+    final Map<String, dynamic> data = _processResponse(response);
+    if (data.containsKey('medicines') && data['medicines'] is List) {
+      return (data['medicines'] as List).map((e) => e as Map<String, dynamic>).toList();
+    }
+    return [];
   }
 
   // --- Maps & Weather ---
@@ -441,4 +462,201 @@ class ApiClient {
 
     _processResponse(response);
   }
+
+  // ── Vet Profiles ──────────────────────────────────────────────────────────
+
+  static Future<List<dynamic>> getVets({
+    String? specialization,
+    String? district,
+    bool? isAvailable,
+  }) async {
+    final params = <String, String>{};
+    if (specialization != null) params['specialization'] = specialization;
+    if (district != null) params['district'] = district;
+    if (isAvailable != null) params['isAvailable'] = isAvailable.toString();
+    final uri = Uri.parse('$baseUrl/vet-profiles').replace(queryParameters: params);
+    final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 12));
+    final data = _processResponse(response);
+    return data is List ? data : [];
+  }
+
+  static Future<Map<String, dynamic>> getVetProfile(String userId) async {
+    final response = await http.get(Uri.parse('$baseUrl/vet-profiles/$userId'), headers: _headers).timeout(const Duration(seconds: 10));
+    return _processResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> createVetProfile({
+    required String userId,
+    required String licenseNumber,
+    required String specialization,
+    int? experienceYears,
+    double? consultationFee,
+    String? availableFrom,
+    String? availableTo,
+    List<String>? availableDays,
+    String? bio,
+    String? profileImageUrl,
+    double? latitude,
+    double? longitude,
+    String? district,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/vet-profiles'),
+      headers: _headers,
+      body: jsonEncode({
+        'userId': userId,
+        'licenseNumber': licenseNumber,
+        'specialization': specialization,
+        if (experienceYears != null) 'experienceYears': experienceYears,
+        if (consultationFee != null) 'consultationFee': consultationFee,
+        if (availableFrom != null) 'availableFrom': availableFrom,
+        if (availableTo != null) 'availableTo': availableTo,
+        if (availableDays != null) 'availableDays': availableDays,
+        if (bio != null) 'bio': bio,
+        if (profileImageUrl != null) 'profileImageUrl': profileImageUrl,
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
+        if (district != null) 'district': district,
+      }),
+    ).timeout(const Duration(seconds: 12));
+    return _processResponse(response);
+  }
+
+  static Future<List<dynamic>> getVetSlots({required String vetId, String? date}) async {
+    final uri = Uri.parse('$baseUrl/vet-profiles/$vetId/slots')
+        .replace(queryParameters: date != null ? {'date': date} : null);
+    final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 10));
+    final data = _processResponse(response);
+    return data is List ? data : [];
+  }
+
+  static Future<List<dynamic>> createVetSlots({
+    required String vetId,
+    required List<Map<String, String>> slots,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/vet-profiles/$vetId/slots'),
+      headers: _headers,
+      body: jsonEncode({'slots': slots}),
+    ).timeout(const Duration(seconds: 12));
+    final data = _processResponse(response);
+    return data is List ? data : [];
+  }
+
+  static Future<void> updateVetSlot(String slotId, {String? startTime, String? endTime, String? date}) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/vet-profiles/slots/$slotId'),
+      headers: _headers,
+      body: jsonEncode({
+        if (startTime != null) 'startTime': startTime,
+        if (endTime != null) 'endTime': endTime,
+        if (date != null) 'date': date,
+      }),
+    ).timeout(const Duration(seconds: 10));
+    _processResponse(response);
+  }
+
+  static Future<void> deleteVetSlot(String slotId) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/vet-profiles/slots/$slotId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 10));
+    _processResponse(response);
+  }
+
+  // ── Appointments / Consultations ──────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> bookAppointment({
+    required String farmerId,
+    required String vetId,
+    required String slotId,
+    String? notes,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/tele-consultations/book'),
+      headers: _headers,
+      body: jsonEncode({'farmerId': farmerId, 'vetId': vetId, 'slotId': slotId, if (notes != null) 'notes': notes}),
+    ).timeout(const Duration(seconds: 12));
+    return _processResponse(response);
+  }
+
+  static Future<List<dynamic>> getMyConsultations({required String userId, required String role}) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/tele-consultations/my/$userId?role=$role'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 12));
+    final data = _processResponse(response);
+    return data is List ? data : [];
+  }
+
+  static Future<Map<String, dynamic>> acceptConsultation(String id) async {
+    final response = await http.patch(Uri.parse('$baseUrl/tele-consultations/$id/accept'), headers: _headers).timeout(const Duration(seconds: 10));
+    return _processResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> rejectConsultation(String id) async {
+    final response = await http.patch(Uri.parse('$baseUrl/tele-consultations/$id/reject'), headers: _headers).timeout(const Duration(seconds: 10));
+    return _processResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> completeConsultation(String id, {String? prescription}) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/tele-consultations/$id/complete'),
+      headers: _headers,
+      body: jsonEncode({if (prescription != null) 'prescription': prescription}),
+    ).timeout(const Duration(seconds: 10));
+    return _processResponse(response);
+  }
+
+  // ── Chat ──────────────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> sendMessage({required String receiverId, required String content}) async {
+    final senderId = _currentUser?['id'] ?? '';
+    final response = await http.post(
+      Uri.parse('$baseUrl/chat/send'),
+      headers: _headers,
+      body: jsonEncode({'senderId': senderId, 'receiverId': receiverId, 'content': content}),
+    ).timeout(const Duration(seconds: 10));
+    return _processResponse(response);
+  }
+
+  static Future<List<dynamic>> getChatHistory(String otherUserId) async {
+    final senderId = _currentUser?['id'] ?? '';
+    final response = await http.get(
+      Uri.parse('$baseUrl/chat/history/$otherUserId?userId=$senderId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 10));
+    final data = _processResponse(response);
+    return data is List ? data : [];
+  }
+
+  static Future<List<dynamic>> getChatList() async {
+    final senderId = _currentUser?['id'] ?? '';
+    final response = await http.get(
+      Uri.parse('$baseUrl/chat/list?userId=$senderId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 10));
+    final data = _processResponse(response);
+    return data is List ? data : [];
+  }
+
+  // ── Push Notifications ────────────────────────────────────────────────────
+  
+  static Future<void> updateFcmToken(String token) async {
+    final userId = _currentUser?['id'];
+    if (userId == null) return;
+    
+    try {
+      final response = await http.patch(
+        Uri.parse('$baseUrl/users/$userId/fcm-token'),
+        headers: _headers,
+        body: jsonEncode({'fcmToken': token}),
+      ).timeout(const Duration(seconds: 10));
+      _processResponse(response);
+    } catch (e) {
+      debugPrint('Error updating FCM token: $e');
+    }
+  }
 }
+
+

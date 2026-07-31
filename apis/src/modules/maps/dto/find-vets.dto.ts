@@ -1,16 +1,16 @@
-import { IsNumber, IsOptional } from 'class-validator';
+import { IsNumber, IsNotEmpty, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class FindVetsDto {
   @Type(() => Number)
-  @IsOptional()
+  @IsNotEmpty({ message: 'Latitude is required — send your real GPS location' })
   @IsNumber()
-  lat?: number;
+  lat: number;
 
   @Type(() => Number)
-  @IsOptional()
+  @IsNotEmpty({ message: 'Longitude is required — send your real GPS location' })
   @IsNumber()
-  lng?: number;
+  lng: number;
 
   @Type(() => Number)
   @IsOptional()

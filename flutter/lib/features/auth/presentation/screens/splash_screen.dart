@@ -30,7 +30,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     if (mounted) {
       if (ApiClient.authToken != null && ApiClient.currentUser != null) {
         ref.read(authProvider.notifier).initAuth();
-        context.go('/home');
+        final role = (ApiClient.currentUser?['role'] ?? 'FARMER').toString().toUpperCase();
+        context.go(role == 'VET' ? '/vet-dashboard' : '/home');
       } else {
         context.go('/login');
       }

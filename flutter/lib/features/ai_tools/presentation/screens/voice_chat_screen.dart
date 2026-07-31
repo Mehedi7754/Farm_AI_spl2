@@ -4,9 +4,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:go_router/go_router.dart';
-import 'package:http/http.dart' as http;
+import '../../../../core/network/api_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class VoiceChatScreen extends StatefulWidget {
   const VoiceChatScreen({super.key});
@@ -27,23 +26,14 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
   bool _isSpeaking = false;
   bool _isLoading = false;
   bool _isVoiceMode = true;
+  bool _isQueryProcessing = false;
 
   String _currentSpeechWords = '';
   String _statusText = 'কথা বলতে মাইকে চাপুন';
 
   List<Map<String, String>> _messages = [];
 
-  static String get _groqApiKey {
-    try {
-      if (dotenv.isInitialized && dotenv.env['GROQ_API_KEY'] != null) {
-        return dotenv.env['GROQ_API_KEY']!;
-      }
-    } catch (_) {}
-    return '';
-  }
-  static const String _groqEndpoint = 'https://api.groq.com/openai/v1/chat/completions';
-  static const String _prefsKey = 'farm_voice_chat_history_v13';
-  static const String _modelName = 'llama-3.3-70b-versatile';
+  static const String _prefsKey = 'farm_voice_chat_history_v14';
 
   @override
   void initState() {
@@ -55,8 +45,10 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
 
   @override
   void dispose() {
-    _flutterTts.stop();
-    _speech.stop();
+    try {
+      _flutterTts.stop();
+      _speech.cancel();
+    } catch (_) {}
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -79,6 +71,9 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
         answerText = match.group(1)!.replaceAll(r'\"', '"').replaceAll(r'\n', ' ');
       }
     }
+
+    // Strip out any XML-like tags (e.g. <thought>, <tool_call>)
+    answerText = answerText.replaceAll(RegExp(r'<[^>]*>', multiLine: true), '');
 
     final noEmojis = answerText.replaceAll(RegExp(
       r'[\u{1F600}-\u{1F64F}'
@@ -107,10 +102,12 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
       final savedJson = prefs.getString(_prefsKey);
       if (savedJson != null && savedJson.isNotEmpty) {
         final List<dynamic> list = jsonDecode(savedJson);
-        setState(() {
-          _messages = list.map((item) => Map<String, String>.from(item)).toList();
-        });
-        _scrollToBottom();
+        if (mounted) {
+          setState(() {
+            _messages = list.map((item) => Map<String, String>.from(item)).toList();
+          });
+          _scrollToBottom();
+        }
       }
     } catch (e) {
       debugPrint('Error loading chat history: $e');
@@ -120,7 +117,8 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
   Future<void> _saveChatHistory() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final jsonString = jsonEncode(_messages);
+      final listToSave = _messages.map((item) => Map<String, String>.from(item)).toList();
+      final jsonString = jsonEncode(listToSave);
       await prefs.setString(_prefsKey, jsonString);
     } catch (e) {
       debugPrint('Error saving chat history: $e');
@@ -128,8 +126,10 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
   }
 
   Future<void> _startNewChat() async {
-    await _flutterTts.stop();
-    await _speech.stop();
+    try {
+      await _flutterTts.stop();
+      await _speech.stop();
+    } catch (_) {}
     setState(() {
       _messages.clear();
       _isListening = false;
@@ -194,22 +194,20 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
     });
   }
 
-  void _initSpeech() async {
+  Future<bool> _initSpeech() async {
     _speech = stt.SpeechToText();
     try {
       _isSpeechAvailable = await _speech.initialize(
         onStatus: (status) {
           debugPrint('STT Status: $status');
+          // Only update UI state here — do NOT call _sendQueryToGroq.
+          // _sendQueryToGroq is ONLY triggered from onResult(finalResult: true)
+          // to prevent duplicate messages.
           if (status == 'done' || status == 'notListening') {
             if (mounted && _isListening) {
               setState(() {
                 _isListening = false;
               });
-              if (_currentSpeechWords.trim().isNotEmpty) {
-                final text = _currentSpeechWords.trim();
-                _currentSpeechWords = '';
-                _sendQueryToGroq(text);
-              }
             }
           }
         },
@@ -224,18 +222,30 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
         },
       );
       if (mounted) setState(() {});
+      return _isSpeechAvailable;
     } catch (e) {
       debugPrint('Speech init error: $e');
+      return false;
     }
   }
 
   void _toggleListening() async {
     if (_isListening) {
-      await _speech.stop();
+      // User manually stopped — capture text BEFORE stopping speech
+      // so onStatus('done') fires with nothing left to send.
+      final capturedText = _currentSpeechWords.trim();
+      _currentSpeechWords = '';
+      try {
+        await _speech.stop();
+      } catch (_) {}
       setState(() {
         _isListening = false;
         _statusText = 'কথা বলতে মাইকে চাপুন';
       });
+      // Send only if onResult(finalResult) has NOT already sent this text
+      if (capturedText.isNotEmpty && !_isQueryProcessing) {
+        _sendQueryToGroq(capturedText);
+      }
     } else {
       _startListening();
     }
@@ -243,12 +253,27 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
 
   void _startListening() async {
     if (_isSpeaking) {
-      await _flutterTts.stop();
+      try {
+        await _flutterTts.stop();
+      } catch (_) {}
       setState(() => _isSpeaking = false);
     }
 
     if (!_isSpeechAvailable) {
-      _initSpeech();
+      final ok = await _initSpeech();
+      if (!ok) {
+        setState(() {
+          _isListening = false;
+          _statusText = 'মাইক্রোফোন চালু করা যায়নি। পারমিশন চেক করুন।';
+        });
+        return;
+      }
+    }
+
+    if (_speech.isListening) {
+      try {
+        await _speech.stop();
+      } catch (_) {}
     }
 
     setState(() {
@@ -268,10 +293,26 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
                 _statusText = 'শুনছি: ${result.recognizedWords}';
               }
             });
+            if (result.finalResult) {
+              final text = result.recognizedWords.trim();
+              if (text.isNotEmpty) {
+                // Clear BEFORE stopping so onStatus callback sees empty words
+                _currentSpeechWords = '';
+                try {
+                  _speech.stop();
+                } catch (_) {}
+                setState(() {
+                  _isListening = false;
+                });
+                _sendQueryToGroq(text);
+              }
+            }
           }
         },
-        listenFor: const Duration(seconds: 15),
+        listenFor: const Duration(seconds: 30),
         pauseFor: const Duration(seconds: 3),
+        listenMode: stt.ListenMode.dictation,
+        cancelOnError: true,
       );
     } catch (e) {
       debugPrint('Listen exception: $e');
@@ -281,12 +322,17 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
 
   Future<void> _sendQueryToGroq(String userPrompt) async {
     if (userPrompt.trim().isEmpty) return;
+    if (_isQueryProcessing) return;
+
+    _isQueryProcessing = true;
 
     if (_isListening) {
-      await _speech.stop();
+      try {
+        await _speech.stop();
+      } catch (_) {}
     }
 
-    final cleanPrompt = _extractCleanJsonAnswer(userPrompt);
+    final cleanPrompt = userPrompt.trim();
 
     setState(() {
       _messages.add({'text': cleanPrompt, 'isUser': 'true'});
@@ -300,73 +346,20 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
     await _saveChatHistory();
 
     try {
-      final isFirstTurn = _messages.where((m) => m['isUser'] == 'false').isEmpty;
-
-      final systemPromptText = isFirstTurn
-          ? '''
-You are a senior veterinary surgeon and livestock doctor. Respond strictly in JSON format with key "answer".
-JSON schema: {"answer": "string"}
-
-Rules:
-1. Start the first message with: "আসসালামু আলাইকুম। আমি FarmAI ভেটেরিনারি সহকারী।"
-2. Provide a 1-2 sentence professional Bengali answer. Keep it brief and direct.
-3. No emojis, no markdown symbols, no extra JSON keys.
-'''.trim()
-          : '''
-You are a senior veterinary surgeon and livestock doctor. Respond strictly in JSON format with key "answer".
-JSON schema: {"answer": "string"}
-
-Rules:
-1. Do not repeat greetings. Answer directly.
-2. Provide a 1-2 sentence professional Bengali answer. Keep it brief and direct.
-3. No emojis, no markdown symbols, no extra JSON keys.
-'''.trim();
-
-      final recentHistory = _messages.length > 4 ? _messages.sublist(_messages.length - 4) : _messages;
-      
-      final historyMessages = <Map<String, String>>[
-        {'role': 'system', 'content': systemPromptText},
-        ...recentHistory.map((m) => {
-          'role': m['isUser'] == 'true' ? 'user' : 'assistant',
-          'content': m['text']!,
-        }),
-      ];
-
-      final response = await http.post(
-        Uri.parse(_groqEndpoint),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_groqApiKey',
-        },
-        body: jsonEncode({
-          'model': _modelName,
-          'response_format': {'type': 'json_object'},
-          'messages': historyMessages,
-          'temperature': 0.3,
-          'max_completion_tokens': 400,
-        }),
-      ).timeout(const Duration(seconds: 10));
-
+      final data = await ApiClient.voiceChat(cleanPrompt, language: 'bn');
       if (mounted) {
-        if (response.statusCode == 200) {
-          final data = jsonDecode(utf8.decode(response.bodyBytes));
-          final rawContent = data['choices']?[0]?['message']?['content']?.toString() ?? '';
-
-          if (rawContent.isNotEmpty) {
-            final cleanReply = _extractCleanJsonAnswer(rawContent);
-
-            if (cleanReply.isNotEmpty) {
-              setState(() {
-                _isLoading = false;
-                _messages.add({'text': cleanReply, 'isUser': 'false'});
-                _statusText = 'উত্তর প্রদান করা হচ্ছে...';
-              });
-              _scrollToBottom();
-              await _saveChatHistory();
-              _speakReply(cleanReply);
-              return;
-            }
-          }
+        final replyText = data['reply']?.toString() ?? '';
+        if (replyText.isNotEmpty) {
+          final cleanReply = _extractCleanJsonAnswer(replyText);
+          setState(() {
+            _isLoading = false;
+            _messages.add({'text': cleanReply.isNotEmpty ? cleanReply : replyText, 'isUser': 'false'});
+            _statusText = 'উত্তর প্রদান করা হচ্ছে...';
+          });
+          _scrollToBottom();
+          await _saveChatHistory();
+          _speakReply(cleanReply.isNotEmpty ? cleanReply : replyText);
+          return;
         }
 
         setState(() {
@@ -375,13 +368,15 @@ Rules:
         });
       }
     } catch (e) {
-      debugPrint('Groq API Error: $e');
+      debugPrint('Voice Chat API Error: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
           _statusText = 'ইন্টারনেট বা সার্ভার সমস্যা।';
         });
       }
+    } finally {
+      _isQueryProcessing = false;
     }
   }
 
@@ -463,7 +458,9 @@ Rules:
                   icon: Icons.chat_bubble_outline_rounded,
                   isSelected: !_isVoiceMode,
                   onTap: () {
-                    if (_isListening) _speech.stop();
+                    try {
+                      if (_isListening) _speech.stop();
+                    } catch (_) {}
                     setState(() {
                       _isVoiceMode = false;
                       _isListening = false;
@@ -509,8 +506,7 @@ Rules:
                     itemCount: _messages.length,
                     itemBuilder: (context, index) {
                       final msg = _messages[index];
-                      final isUser = msg['isUser'] == 'true';
-                      return _buildChatBubble(context, msg['text']!, isUser);
+                      return _buildChatBubble(context, msg['text']!, msg['isUser'] == 'true', index);
                     },
                   ),
           ),
@@ -576,8 +572,9 @@ Rules:
     );
   }
 
-  Widget _buildChatBubble(BuildContext context, String text, bool isUser) {
+  Widget _buildChatBubble(BuildContext context, String text, bool isUser, int index) {
     return Align(
+      key: ValueKey('voice_msg_${index}_${text.hashCode}'),
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -594,7 +591,7 @@ Rules:
           border: isUser ? null : Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
+              color: Colors.black.withOpacity(0.03),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -684,7 +681,7 @@ Rules:
                 color: _isListening ? const Color(0xFFEF4444) : const Color(0xFF059669),
                 boxShadow: [
                   BoxShadow(
-                    color: (_isListening ? const Color(0xFFEF4444) : const Color(0xFF059669)).withValues(alpha: 0.35),
+                    color: (_isListening ? const Color(0xFFEF4444) : const Color(0xFF059669)).withOpacity(0.35),
                     blurRadius: _isListening ? 20 : 10,
                     spreadRadius: _isListening ? 5 : 1,
                   ),

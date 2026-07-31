@@ -111,11 +111,16 @@ export class UsersService {
   }
 
   async update(id: string, updateUserDto: UpdateUserDto) {
-    await this.findOne(id);
-
     return this.prisma.user.update({
       where: { id },
       data: updateUserDto,
+    });
+  }
+
+  async updateFcmToken(id: string, fcmToken: string) {
+    return this.prisma.user.update({
+      where: { id },
+      data: { fcmToken },
     });
   }
 

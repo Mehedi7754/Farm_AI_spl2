@@ -27,7 +27,7 @@ class _AnimalListScreenState extends ConsumerState<AnimalListScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('ক্যামেরা থেকে QR স্ক্যান সম্পন্ন: $generatedCollar 📷'),
+              content: Text('ক্যামেরা থেকে QR স্ক্যান সম্পন্ন: $generatedCollar'),
               backgroundColor: const Color(0xFF064E3B),
             ),
           );
@@ -82,7 +82,7 @@ class _AnimalListScreenState extends ConsumerState<AnimalListScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'নতুন গবাদিপশু নিবন্ধিত করুন 🐄',
+                          'নতুন গবাদিপশু নিবন্ধিত করুন',
                           style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF0F172A)),
                         ),
                         IconButton(
@@ -142,7 +142,7 @@ class _AnimalListScreenState extends ConsumerState<AnimalListScreen> {
                                   Row(
                                     children: [
                                       Text(
-                                        isPaired ? 'স্মার্ট কলার কানেক্টেড ✓' : 'ক্যামেরা দিয়ে কলার QR স্ক্যান করুন 📷',
+                                        isPaired ? 'স্মার্ট কলার কানেক্টেড ✓' : 'ক্যামেরা দিয়ে কলার QR স্ক্যান করুন',
                                         style: TextStyle(
                                           fontWeight: FontWeight.w900,
                                           fontSize: 13,

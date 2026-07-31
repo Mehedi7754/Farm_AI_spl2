@@ -3,6 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { AiToolsService } from './ai-tools.service';
 import { VoiceChatDto } from './dto/voice-chat.dto';
 import { SymptomCheckDto } from './dto/symptom-check.dto';
+import { MedicineInfoDto } from './dto/medicine-info.dto';
 
 @Controller('ai-tools')
 export class AiToolsController {
@@ -24,5 +25,10 @@ export class AiToolsController {
     const buffer = file?.buffer || Buffer.from('mock audio');
     const name = file?.originalname || 'audio.mp3';
     return this.aiToolsService.transcribeAudio(buffer, name);
+  }
+
+  @Post('medicine-info')
+  getMedicineInfo(@Body() dto: MedicineInfoDto) {
+    return this.aiToolsService.getMedicineInfo(dto);
   }
 }

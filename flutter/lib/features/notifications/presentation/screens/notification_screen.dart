@@ -56,7 +56,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
     },
     {
       'id': '5',
-      'title': 'ভেটেরিনারি ডাক্তারের অ্যাপয়েন্টমেন্ট 🩺',
+      'title': 'ভেটেরিনারি ডাক্তারের অ্যাপয়েন্টমেন্ট',
       'body': 'ডাঃ মোঃ রফিকুল ইসলামের সাথে আগামী পরশু বেলা ৩:০০ টায় ভিডিও কল বুকড।',
       'time': '২ দিন আগে',
       'type': 'doctor',

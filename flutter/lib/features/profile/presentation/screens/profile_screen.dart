@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../vet/presentation/screens/vet_profile_screen.dart';
 
 final notificationSettingProvider = StateProvider<bool>((ref) => true);
 final selectedLanguageProvider = StateProvider<String>((ref) => 'বাংলা (Bangla)');
@@ -199,10 +200,14 @@ class ProfileScreen extends ConsumerWidget {
     final currentLang = ref.watch(selectedLanguageProvider);
     final user = authState.user;
 
+    final userRole = (user?['role'] ?? '').toString().toUpperCase();
+    if (userRole == 'VET') {
+      return const VetProfileScreen();
+    }
+
     final userName = user?['name']?.toString() ?? 'খামারি ভাই';
     final userPhone = user?['phoneNumber']?.toString() ?? user?['email']?.toString() ?? 'যোগাযোগের তথ্য পাওয়া যায়নি';
     final userLocation = user?['location']?.toString() ?? 'বাংলাদেশ';
-    final userRole = user?['role']?.toString() ?? 'FARMER';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FBF9),

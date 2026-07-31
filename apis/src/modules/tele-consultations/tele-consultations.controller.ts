@@ -1,34 +1,68 @@
 import { Controller, Get, Post, Body, Patch, Param, Query, Delete } from '@nestjs/common';
 import { TeleConsultationsService } from './tele-consultations.service';
-import { CreateTeleConsultationDto } from './dto/create-tele-consultation.dto';
-import { UpdateTeleConsultationDto } from './dto/update-tele-consultation.dto';
 
 @Controller('tele-consultations')
 export class TeleConsultationsController {
-  constructor(private readonly teleConsultationsService: TeleConsultationsService) {}
+  constructor(private readonly svc: TeleConsultationsService) {}
 
-  @Post()
-  create(@Body() dto: CreateTeleConsultationDto) {
-    return this.teleConsultationsService.create(dto);
+  // Farmer books a slot
+  @Post('book')
+  book(
+    @Body('farmerId') farmerId: string,
+    @Body('vetId') vetId: string,
+    @Body('slotId') slotId: string,
+    @Body('notes') notes?: string,
+  ) {
+    return this.svc.book(farmerId, vetId, slotId, notes);
+  }
+
+  // Vet accepts
+  @Patch(':id/accept')
+  accept(@Param('id') id: string) {
+    return this.svc.accept(id);
+  }
+
+  // Vet rejects
+  @Patch(':id/reject')
+  reject(@Param('id') id: string) {
+    return this.svc.reject(id);
+  }
+
+  // Mark completed
+  @Patch(':id/complete')
+  complete(@Param('id') id: string, @Body('prescription') prescription?: string) {
+    return this.svc.complete(id, prescription);
+  }
+
+  // Start call
+  @Patch(':id/start-call')
+  startCall(@Param('id') id: string) {
+    return this.svc.startCall(id);
+  }
+
+  // My consultations (farmer or vet)
+  @Get('my/:userId')
+  findMy(@Param('userId') userId: string, @Query('role') role: 'FARMER' | 'VET') {
+    return this.svc.findMyConsultations(userId, role);
   }
 
   @Get()
   findAll(@Query('farmerId') farmerId?: string, @Query('vetId') vetId?: string) {
-    return this.teleConsultationsService.findAll(farmerId, vetId);
+    return this.svc.findAll(farmerId, vetId);
   }
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.teleConsultationsService.findOne(id);
+    return this.svc.findOne(id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateTeleConsultationDto) {
-    return this.teleConsultationsService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: any) {
+    return this.svc.update(id, dto);
   }
 
   @Delete(':id')
   cancel(@Param('id') id: string) {
-    return this.teleConsultationsService.cancel(id);
+    return this.svc.cancel(id);
   }
 }

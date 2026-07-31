@@ -125,7 +125,7 @@ class _TeleVetScreenState extends State<TeleVetScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('সরাসরি ভিডিও কলে ডাক্তারের পরামর্শ নিন 🩺', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                        const Text('সরাসরি ভিডিও কলে ডাক্তারের পরামর্শ নিন', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 4),
                         const Text('২৪ ঘণ্টা বিশেষজ্ঞ ভেটেরিনারি সার্জনদের সাথে সরাসরি ভিডিও কথা বলুন', style: TextStyle(color: Colors.white70, fontSize: 10)),
                         const SizedBox(height: 12),

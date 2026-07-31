@@ -5,7 +5,7 @@ FarmAI utilizes several Artificial Intelligence models to provide an intelligent
 ## AI Models
 - **CNN Image Classification Model**: Analyzes images uploaded by farmers to detect wounds, skin problems, or swelling.
 - **Whisper Speech-to-Text**: Processes Bengali voice input, allowing illiterate or less tech-savvy farmers to communicate easily.
-- **Gemma Large Language Model (LLM)**: Powers the Bangla AI Voice Chat and provides natural language responses for feeding advice, animal care, and general farming support.
+- **Qwen 3.6 27B (LLM)**: Powers the Bangla AI Voice Chat and Symptom Checker, providing fast and highly accurate natural language responses for feeding advice, disease care, and general farming support.
 
 ## Core AI Features
 

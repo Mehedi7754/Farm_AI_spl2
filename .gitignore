@@ -12,4 +12,10 @@ flutter/.metadata
 .DS_Store
 .env
 *.env
-
+apis/firebase-service-account.json
+apis/dist.tar.gz
+instance_id.txt
+instance_ip.txt
+test_endpoints*.sh
+apis/*.js
+apis/prisma/migrations/

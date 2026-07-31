@@ -31,6 +31,7 @@ export class CommunityService {
         title: dto.title,
         content: dto.content,
         category: dto.category || 'GENERAL',
+        imageUrl: dto.imageUrl,
         authorId,
       },
       include: { author: true, comments: { include: { author: true } } },

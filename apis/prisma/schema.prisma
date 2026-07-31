@@ -37,6 +37,15 @@ enum TransactionType {
   EXPENSE
 }
 
+enum ConsultationStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
+
 model User {
   id                String             @id @default(uuid())
   name              String
@@ -45,6 +54,7 @@ model User {
   phoneNumber       String             @unique
   role              Role               @default(FARMER)
   location          String?
+  fcmToken          String?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
@@ -55,8 +65,69 @@ model User {
   communityPosts    CommunityPost[]
   communityComments CommunityComment[]
   communityLikes    CommunityLike[]
+  vetProfile        VetProfile?
+  appointmentSlots  AppointmentSlot[]  @relation("VetSlots")
+  reviewsReceived   VetReview[]        @relation("VetReviews")
+  reviewsGiven      VetReview[]        @relation("FarmerReviews")
+
+  sentMessages      ChatMessage[]      @relation("SentMessages")
+  receivedMessages  ChatMessage[]      @relation("ReceivedMessages")
 
   @@map("users")
+}
+
+model VetProfile {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  licenseNumber    String   @unique
+  specialization   String
+  experienceYears  Int      @default(0)
+  consultationFee  Float    @default(0)
+  availableFrom    String   @default("09:00")
+  availableTo      String   @default("18:00")
+  availableDays    String[]
+  bio              String?
+  profileImageUrl  String?
+  rating           Float    @default(0)
+  totalReviews     Int      @default(0)
+  isVerified       Boolean  @default(false)
+  isAvailable      Boolean  @default(true)
+  latitude         Float?
+  longitude        Float?
+  district         String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("vet_profiles")
+}
+
+model AppointmentSlot {
+  id           String            @id @default(uuid())
+  vetId        String
+  vet          User              @relation("VetSlots", fields: [vetId], references: [id], onDelete: Cascade)
+  date         DateTime
+  startTime    String
+  endTime      String
+  isBooked     Boolean           @default(false)
+  consultation TeleConsultation?
+  createdAt    DateTime          @default(now())
+
+  @@map("appointment_slots")
+}
+
+model VetReview {
+  id        String   @id @default(uuid())
+  vetId     String
+  vet       User     @relation("VetReviews", fields: [vetId], references: [id], onDelete: Cascade)
+  farmerId  String
+  farmer    User     @relation("FarmerReviews", fields: [farmerId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@unique([vetId, farmerId])
+  @@map("vet_reviews")
 }
 
 model District {
@@ -99,10 +170,32 @@ model SmartCollar {
   lastHeartRate Float?
   lastBodyTemp  Float?
   lastStepCount Int?
+  lastLatitude  Float?
+  lastLongitude Float?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  locations     CollarLocation[]
+
   @@map("smart_collars")
+}
+
+model CollarLocation {
+  id          String      @id @default(uuid())
+  collarId    String
+  collar      SmartCollar @relation(fields: [collarId], references: [id], onDelete: Cascade)
+  latitude    Float
+  longitude   Float
+  altitude    Float?
+  speed       Float?
+  course      Float?
+  satellites  Int?
+  fixQuality  String?
+  recordedAt  DateTime
+  createdAt   DateTime    @default(now())
+
+  @@index([collarId, recordedAt])
+  @@map("collar_locations")
 }
 
 model HealthAssessment {
@@ -132,16 +225,20 @@ model Vaccination {
 }
 
 model TeleConsultation {
-  id            String   @id @default(uuid())
+  id            String             @id @default(uuid())
   farmerId      String
-  farmer        User     @relation("FarmerConsultations", fields: [farmerId], references: [id], onDelete: Cascade)
+  farmer        User               @relation("FarmerConsultations", fields: [farmerId], references: [id], onDelete: Cascade)
   vetId         String
-  vet           User     @relation("VetConsultations", fields: [vetId], references: [id], onDelete: Cascade)
-  status        String   @default("PENDING")
+  vet           User               @relation("VetConsultations", fields: [vetId], references: [id], onDelete: Cascade)
+  slotId        String?            @unique
+  slot          AppointmentSlot?   @relation(fields: [slotId], references: [id])
+  status        ConsultationStatus @default(PENDING)
   scheduledTime DateTime
   prescription  String?
   notes         String?
-  createdAt     DateTime @default(now())
+  roomId        String?
+  callStatus    String             @default("NOT_STARTED")
+  createdAt     DateTime           @default(now())
 
   @@map("tele_consultations")
 }
@@ -160,18 +257,18 @@ model FinancialRecord {
 }
 
 model CommunityPost {
-  id        String             @id @default(uuid())
-  authorId  String
-  author    User               @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  title     String
-  content   String
-  category  String             @default("GENERAL")
-  imageUrl  String?
-  likesCount Int               @default(0)
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
-  comments  CommunityComment[]
-  likes     CommunityLike[]
+  id         String             @id @default(uuid())
+  authorId   String
+  author     User               @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  title      String
+  content    String
+  category   String             @default("GENERAL")
+  imageUrl   String?
+  likesCount Int                @default(0)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  comments   CommunityComment[]
+  likes      CommunityLike[]
 
   @@map("community_posts")
 }
@@ -198,4 +295,16 @@ model CommunityComment {
   createdAt DateTime      @default(now())
 
   @@map("community_comments")
+}
+
+model ChatMessage {
+  id         String   @id @default(uuid())
+  senderId   String
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  content    String
+  createdAt  DateTime @default(now())
+
+  @@map("chat_messages")
 }

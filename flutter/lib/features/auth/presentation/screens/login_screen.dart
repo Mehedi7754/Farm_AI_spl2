@@ -15,6 +15,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  String _selectedRole = 'FARMER';
 
   Future<void> _handleLogin() async {
     final email = _emailController.text.trim();
@@ -36,11 +37,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('লগইন সফল হয়েছে! 👋'),
+            content: Text('লগইন সফল হয়েছে!'),
             backgroundColor: Color(0xFF2E7D32),
           ),
         );
-        context.go('/home');
+        
+        final user = ref.read(authProvider).user;
+        final serverRole = (user?['role'] ?? '').toString().toUpperCase();
+        final targetRole = serverRole.isNotEmpty ? serverRole : _selectedRole;
+        
+        context.go(targetRole == 'VET' ? '/vet-dashboard' : '/home');
       } else {
         final errorMsg = ref.read(authProvider).errorMessage ?? 'লগইন করতে ব্যর্থ হয়েছে। ইমেইল বা পাসওয়ার্ড পরীক্ষা করুন।';
         ScaffoldMessenger.of(context).showSnackBar(
@@ -128,6 +134,74 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ],
                             ),
                           ),
+
+                        // Role Selector Tab
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () => setState(() => _selectedRole = 'FARMER'),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: _selectedRole == 'FARMER' ? const Color(0xFF2E7D32) : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.agriculture_rounded, size: 16, color: _selectedRole == 'FARMER' ? Colors.white : const Color(0xFF64748B)),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'কৃষক লগইন',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: _selectedRole == 'FARMER' ? Colors.white : const Color(0xFF64748B),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () => setState(() => _selectedRole = 'VET'),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: _selectedRole == 'VET' ? const Color(0xFF1565C0) : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.local_hospital_rounded, size: 16, color: _selectedRole == 'VET' ? Colors.white : const Color(0xFF64748B)),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'পশু চিকিৎসক',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: _selectedRole == 'VET' ? Colors.white : const Color(0xFF64748B),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
 
                         // Email Field
                         _buildTextField(

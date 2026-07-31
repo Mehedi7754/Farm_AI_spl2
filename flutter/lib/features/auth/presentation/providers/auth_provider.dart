@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/services/call_service.dart';
 
 class AuthState {
   final bool isLoading;
@@ -27,27 +28,36 @@ class AuthState {
 
 class AuthNotifier extends StateNotifier<AuthState> {
   AuthNotifier() : super(AuthState()) {
-    initAuth();
+    _init();
   }
 
-  Future<void> initAuth() async {
+  Future<void> _init() async {
     await ApiClient.loadPersistedAuth();
     if (ApiClient.currentUser != null) {
       state = state.copyWith(user: ApiClient.currentUser);
+      // Start listening for incoming calls
+      final userId = ApiClient.currentUser!['id'] as String?;
+      if (userId != null) CallService().connect(userId);
     }
+  }
+
+  Future<void> initAuth() async {
+    await _init();
   }
 
   Future<bool> login(String email, String password) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final res = await ApiClient.login(email: email, password: password);
-      
-      // If it reaches here without throwing, it's successful
+
       final token = res['token'];
       final user = res['user'];
       ApiClient.setAuthData(token, user);
 
       state = state.copyWith(isLoading: false, user: user);
+      // Start listening for incoming calls
+      final userId = user['id'] as String?;
+      if (userId != null) CallService().connect(userId);
       return true;
     } on ApiException catch (e) {
       state = state.copyWith(isLoading: false, errorMessage: e.message);
@@ -58,13 +68,36 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<bool> updateProfile(Map<String, dynamic> updates) async {
-    if (state.user == null || state.user!['id'] == null) return false;
-    final userId = state.user!['id'];
-
+  Future<bool> register(Map<String, dynamic> data) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
-      final updatedUser = await ApiClient.updateUser(userId, updates);
+      final res = await ApiClient.register(
+        email: data['email'] ?? '',
+        password: data['password'] ?? '',
+        name: data['name'] ?? '',
+        phone: data['phone'] ?? data['phoneNumber'],
+        role: data['role'] ?? 'FARMER',
+      );
+      final token = res['token'];
+      final user = res['user'];
+      ApiClient.setAuthData(token, user);
+
+      state = state.copyWith(isLoading: false, user: user);
+      return true;
+    } on ApiException catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: e.message);
+      return false;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: 'Registration failed.');
+      return false;
+    }
+  }
+
+  Future<bool> updateProfile(Map<String, dynamic> updates, [String? userId]) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      final targetId = userId ?? state.user?['id'] ?? '';
+      final updatedUser = await ApiClient.updateUser(targetId, updates);
       final newUserMap = {
         ...?state.user,
         ...updatedUser,
@@ -82,6 +115,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   void logout() {
+    CallService().disconnect();
     ApiClient.logout();
     state = AuthState();
   }

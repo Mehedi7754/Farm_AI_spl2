@@ -20,6 +20,17 @@ import '../../features/utilities/presentation/screens/vaccine_reminder_screen.da
 import '../../features/auth/presentation/screens/registration_screen.dart';
 import '../../features/notifications/presentation/screens/notification_screen.dart';
 import '../../shared/widgets/scaffold_with_bottom_nav.dart';
+import '../../features/vet/presentation/screens/vet_dashboard_screen.dart';
+import '../../features/vet/presentation/screens/find_vet_screen.dart';
+import '../../features/vet/presentation/screens/book_appointment_screen.dart';
+import '../../features/vet/presentation/screens/vet_profile_screen.dart';
+import '../../features/vet/presentation/screens/vet_appointments_screen.dart';
+import '../../features/vet/presentation/screens/vet_slots_screen.dart';
+import '../../features/video_call/presentation/screens/video_call_screen.dart';
+import '../../features/video_call/presentation/screens/incoming_call_screen.dart';
+import '../../features/chat/presentation/screens/chat_screen.dart';
+import '../../features/chat/presentation/screens/chat_list_screen.dart';
+import '../../features/vet/presentation/screens/vet_detail_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -115,7 +126,7 @@ final router = GoRouter(
     GoRoute(
       path: '/televet',
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const TeleVetScreen(),
+      builder: (context, state) => const FindVetScreen(),
     ),
     GoRoute(
       path: '/medicine',
@@ -156,6 +167,86 @@ final router = GoRouter(
       path: '/notifications',
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const NotificationScreen(),
+    ),
+
+    // ── Vet routes ───────────────────────────────────────────────────────────
+    GoRoute(
+      path: '/vet-dashboard',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const VetDashboardScreen(),
+    ),
+    GoRoute(
+      path: '/vet-profile',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const VetProfileScreen(),
+    ),
+    GoRoute(
+      path: '/vet-appointments',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const VetAppointmentsScreen(),
+    ),
+    GoRoute(
+      path: '/vet-slots',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const VetSlotsScreen(),
+    ),
+    GoRoute(
+      path: '/find-vet',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const FindVetScreen(),
+    ),
+    GoRoute(
+      path: '/book-appointment/:vetId',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) {
+        final vetId = state.pathParameters['vetId']!;
+        final vetData = state.extra as Map<String, dynamic>?;
+        return BookAppointmentScreen(vetId: vetId, vetData: vetData);
+      },
+    ),
+    GoRoute(
+      path: '/video-call/:roomId',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) {
+        final roomId = state.pathParameters['roomId']!;
+        return VideoCallScreen(roomId: roomId);
+      },
+    ),
+    GoRoute(
+      path: '/incoming-call',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) {
+        final args = state.extra as Map<String, dynamic>? ?? {};
+        return IncomingCallScreen(
+          roomId: args['roomId'] as String? ?? '',
+          callerName: args['callerName'] as String? ?? 'ডাক্তার',
+          consultationId: args['consultationId'] as String? ?? '',
+          callerSocketId: args['callerSocketId'] as String? ?? '',
+        );
+      },
+    ),
+    GoRoute(
+      path: '/vet-detail/:vetId',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) {
+        final vetId = state.pathParameters['vetId']!;
+        final vetData = state.extra as Map<String, dynamic>?;
+        return VetDetailScreen(vetId: vetId, vetData: vetData);
+      },
+    ),
+    GoRoute(
+      path: '/chat/:otherUserId',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) {
+        final otherUserId = state.pathParameters['otherUserId']!;
+        final name = state.uri.queryParameters['name'] ?? 'Chat';
+        return ChatScreen(otherUserId: otherUserId, otherUserName: name);
+      },
+    ),
+    GoRoute(
+      path: '/chat-list',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const ChatListScreen(),
     ),
   ],
 );

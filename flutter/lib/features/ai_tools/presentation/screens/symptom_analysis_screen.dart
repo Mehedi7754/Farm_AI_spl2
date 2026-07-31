@@ -17,7 +17,7 @@ class _SymptomAnalysisScreenState extends State<SymptomAnalysisScreen> {
   final List<String> _availableSymptoms = [
     'জ্বর', 'খাবারে অরুচি', 'দুধ উৎপাদন হ্রাস', 'কাশি', 'পায়ে ক্ষত', 'ঝিমুনি', 'মুখ থেকে লালা পড়া', 'ত্বকে গুটি/ল্যাম্প'
   ];
-  final Set<String> _selectedSymptoms = {'জ্বর', 'ত্বকে গুটি/ল্যাম্প'};
+  final Set<String> _selectedSymptoms = {};
   final List<File> _attachedPhotos = [];
   final TextEditingController _descriptionController = TextEditingController();
   bool _isAnalyzing = false;

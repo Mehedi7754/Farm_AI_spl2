@@ -109,6 +109,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         actions: [
           GestureDetector(
             onTap: () {
+              context.push('/chat-list');
+            },
+            child: Container(
+              margin: const EdgeInsets.only(right: 10),
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: const Color(0xFFECFDF5),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFA7F3D0)),
+              ),
+              child: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF047857), size: 18),
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
               ref.read(authProvider.notifier).logout();
               context.go('/login');
             },
@@ -433,7 +448,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         'icon': Icons.video_call_rounded,
         'accentColor': const Color(0xFFDB2777),
         'badgeBg': const Color(0xFFFDF2F8),
-        'route': '/televet',
+        'route': '/find-vet',
       },
       {
         'title': StringsBn.medicine,

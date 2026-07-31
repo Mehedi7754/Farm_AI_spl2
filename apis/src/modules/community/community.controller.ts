@@ -1,10 +1,13 @@
-import { Controller, Get, Post, Body, Param, Query, Delete, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Delete, UseInterceptors, UploadedFile, Req, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname, join } from 'path';
 import { CommunityService } from './community.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
+const multerS3 = require('multer-s3');
+import { S3Client } from '@aws-sdk/client-s3';
+import { extname } from 'path';
+
+const s3Client = new S3Client({ region: 'us-east-1' });
 
 @Controller('community')
 export class CommunityController {
@@ -13,9 +16,12 @@ export class CommunityController {
   @Post('upload')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: join(__dirname, '..', '..', '..', 'uploads'),
-        filename: (req, file, cb) => {
+      storage: multerS3({
+        s3: s3Client,
+        bucket: 'farmai-community-uploads-v1',
+        acl: 'public-read',
+        contentType: multerS3.AUTO_CONTENT_TYPE,
+        key: function (req, file, cb) {
           const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
           cb(null, `${uniqueSuffix}${extname(file.originalname)}`);
         },
@@ -23,8 +29,10 @@ export class CommunityController {
     }),
   )
   uploadImage(@UploadedFile() file: any) {
-    if (!file) return { url: null };
-    return { url: `/uploads/${file.filename}` };
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+    return { url: file.location };
   }
 
   @Post('posts')

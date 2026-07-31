@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../../../../core/network/api_client.dart';
 
 class MedicineInfoScreen extends StatefulWidget {
   const MedicineInfoScreen({super.key});
@@ -13,63 +14,34 @@ class MedicineInfoScreen extends StatefulWidget {
   State<MedicineInfoScreen> createState() => _MedicineInfoScreenState();
 }
 
+// Global cache to persist results during the app session
+List<Map<String, dynamic>>? _globalCachedMedicines;
+String? _globalLastQuery;
+String? _globalLastSpecies;
+
 class _MedicineInfoScreenState extends State<MedicineInfoScreen> {
   final TextEditingController _searchController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
 
   File? _selectedImage;
   bool _isLoading = false;
-  String _statusText = 'Groq AI ডাটাবেজে সংযুক্ত';
+  String _statusText = 'AI ডাটাবেজে সংযুক্ত';
   List<Map<String, dynamic>> _medicines = [];
-  String _selectedSpecies = 'সকল';
+  String _selectedSpecies = '';
   String _selectedQuickChip = '';
-
-  static String get _groqApiKey {
-    try {
-      if (dotenv.isInitialized && dotenv.env['GROQ_API_KEY'] != null) {
-        return dotenv.env['GROQ_API_KEY']!;
-      }
-    } catch (_) {}
-    return '';
-  }
-  static const String _groqEndpoint = 'https://api.groq.com/openai/v1/chat/completions';
-  static const String _modelName = 'llama-3.3-70b-versatile';
-
-  static final List<Map<String, dynamic>> _defaultMedicines = [
-    {
-      'name': 'আইভারমেকটিন ১% (Ivermectin 1%)',
-      'group': 'কৃমিনাশক ও পরজীবী দমন',
-      'uses': 'পেটের গোলকৃমি, উঁকুন, মাইট ও পরজীবী চিকিৎসায়',
-      'dosage': '১ মিলি প্রতি ৫০ কেজি ওজনে (চামড়ার নিচে)',
-      'sideEffects': 'ইনজেকশনের স্থানে হালকা জ্বালাপোড়া বা ফোলাভাব',
-      'warning': 'দুগ্ধবতী গাভীতে দুধ পানের ২৮ দিন পূর্বে নিষিদ্ধ',
-      'species': 'গরু, ছাগল, ভেড়া',
-    },
-    {
-      'name': 'প্যারাসিটামল ২০০০ মিগ্রা (Paracetamol 2000mg)',
-      'group': 'জ্বর ও ব্যথানাশক',
-      'uses': 'পশুর যেকোনো তীব্র জ্বর, ব্যথা ও ক্লান্তি দূরীকরণে',
-      'dosage': '১-২টি বোলস দিনে ২ বার (খাবারের পর)',
-      'sideEffects': 'অতিরিক্ত মাত্রায় লিভারে ক্ষতিকর প্রভাব',
-      'warning': 'প্রচুর পরিমাণে পরিষ্কার পানি পান করাতে হবে',
-      'species': 'সকল গবাদিপশু',
-    },
-    {
-      'name': 'অক্সিটেট্রাসাইক্লিন ২০০ (Oxytetracycline 200 LA)',
-      'group': 'ব্রড স্পেকট্রাম অ্যান্টিবায়োটিক',
-      'uses': 'খুররোগ (FMD), নিউমোনিয়া ও ওলান প্রদাহ চিকিৎসায়',
-      'dosage': '১ মিলি প্রতি ১০ কেজি ওজনে (গভীর মাংসপেশিতে)',
-      'sideEffects': 'ইনজেকশনের স্থানে সাময়িক ব্যথা ও অরুচি',
-      'warning': 'টানা ৩-৫ দিনের বেশি ব্যবহার করবেন না',
-      'species': 'গরু, ছাগল',
-    },
-  ];
 
   @override
   void initState() {
     super.initState();
-    _medicines = List.from(_defaultMedicines);
-    _fetchMedicinesFromGroq('গবাদিপশুর প্রয়োজনীয় প্রধান ওষুধসমূহ');
+    if (_globalCachedMedicines != null && _globalCachedMedicines!.isNotEmpty) {
+      _medicines = _globalCachedMedicines!;
+      _searchController.text = _globalLastQuery ?? '';
+      _selectedSpecies = _globalLastSpecies ?? '';
+      _statusText = 'পূর্ববর্তী ফলাফল';
+    } else {
+      _medicines = [];
+      _statusText = 'অনুসন্ধান করুন';
+    }
   }
 
   @override
@@ -122,86 +94,37 @@ class _MedicineInfoScreenState extends State<MedicineInfoScreen> {
 
     setState(() {
       _isLoading = true;
-      _statusText = 'Groq AI অনুসন্ধান চলছে...';
+      _statusText = 'AI অনুসন্ধান চলছে...';
     });
 
     try {
-      final speciesConstraint = _selectedSpecies != 'সকল' ? 'প্রজাতি: $_selectedSpecies।' : '';
-
-      final systemPrompt = '''
-You are an expert veterinary pharmacologist.
-Respond strictly in JSON format matching the schema:
-{
-  "medicines": [
-    {
-      "name": "ওষুধের নাম (Generic & Brand)",
-      "group": "ওষুধের গ্রুপ/ক্যাটাগরি",
-      "uses": "ব্যবহার ও নির্দেশনা",
-      "dosage": "সুপারিশকৃত মাত্রা (ওজন অনুযায়ী)",
-      "sideEffects": "পার্শ্বপ্রতিক্রিয়া",
-      "warning": "সতর্কতা ও প্রত্যাহার কাল",
-      "species": "গরু, ছাগল বা সকল পশু"
-    }
-  ]
-}
-
-Rules:
-1. Provide accurate veterinary medicines in clear Bengali.
-2. Search query: "$query". $speciesConstraint
-3. Return 3-5 relevant medicine entries.
-4. No markdown, no emojis, no extra JSON fields.
-'''.trim();
-
-      final response = await http.post(
-        Uri.parse(_groqEndpoint),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_groqApiKey',
-        },
-        body: jsonEncode({
-          'model': _modelName,
-          'response_format': {'type': 'json_object'},
-          'messages': [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user', 'content': query},
-          ],
-          'temperature': 0.3,
-          'max_completion_tokens': 1600,
-        }),
-      ).timeout(const Duration(seconds: 12));
+      final species = (_selectedSpecies.isNotEmpty && _selectedSpecies != 'সকল') ? _selectedSpecies : null;
+      final medicines = await ApiClient.getMedicineInfo(query, species: species);
 
       if (mounted) {
-        if (response.statusCode == 200) {
-          final data = jsonDecode(utf8.decode(response.bodyBytes));
-          final rawContent = data['choices']?[0]?['message']?['content']?.toString() ?? '';
+        if (medicines.isNotEmpty) {
+          _globalCachedMedicines = medicines;
+          _globalLastQuery = _searchController.text.trim();
+          _globalLastSpecies = _selectedSpecies;
 
-          if (rawContent.isNotEmpty) {
-            final parsed = jsonDecode(rawContent);
-            if (parsed is Map && parsed.containsKey('medicines') && parsed['medicines'] is List) {
-              final List<dynamic> list = parsed['medicines'];
-              if (list.isNotEmpty) {
-                setState(() {
-                  _medicines = list.map((item) => Map<String, dynamic>.from(item)).toList();
-                  _isLoading = false;
-                  _statusText = 'লাইভ AI ফলাফল প্রস্তুত';
-                });
-                return;
-              }
-            }
-          }
+          setState(() {
+            _medicines = medicines;
+            _isLoading = false;
+            _statusText = 'লাইভ AI ফলাফল প্রস্তুত';
+          });
+        } else {
+          setState(() {
+            _isLoading = false;
+            _statusText = 'ফলাফল পাওয়া যায়নি';
+          });
         }
-
-        setState(() {
-          _isLoading = false;
-          _statusText = 'ডিফল্ট ডাটাবেজ প্রদর্শিত হচ্ছে';
-        });
       }
     } catch (e) {
-      debugPrint('Groq API Error: $e');
+      debugPrint('Backend API Error: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _statusText = 'অফলাইন ডাটাবেজ প্রদর্শিত হচ্ছে';
+          _statusText = 'সার্ভার সংযোগ ত্রুটি';
         });
       }
     }
@@ -457,7 +380,7 @@ Rules:
                       CircularProgressIndicator(color: Color(0xFF059669)),
                       SizedBox(height: 12),
                       Text(
-                        'Groq AI ওষুধ তথ্য প্রস্তুত করছে...',
+                        'AI ওষুধ তথ্য প্রস্তুত করছে...',
                         style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF059669)),
                       ),
                     ],
