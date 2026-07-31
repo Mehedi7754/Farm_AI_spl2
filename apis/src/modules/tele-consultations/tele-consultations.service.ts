@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class TeleConsultationsService {
@@ -26,7 +26,7 @@ export class TeleConsultationsService {
       throw new BadRequestException('Slot does not belong to this vet');
     }
 
-    const roomId = `room_${uuidv4()}`;
+    const roomId = `room_${randomUUID()}`;
 
     const [consultation] = await this.prisma.$transaction([
       this.prisma.teleConsultation.create({
