@@ -51,7 +51,8 @@ export class HealthService {
           const blob = new Blob([new Uint8Array(imageBuffer)], { type: 'image/jpeg' });
           formData.append('file', blob, fileName || 'cow_symptom.jpg');
  
-          const response = await fetch('http://localhost:8080/predict', {
+          const modelUrl = process.env.DISEASE_MODEL_URL || 'http://localhost:8080/predict';
+          const response = await fetch(modelUrl, {
             method: 'POST',
             body: formData,
           });
