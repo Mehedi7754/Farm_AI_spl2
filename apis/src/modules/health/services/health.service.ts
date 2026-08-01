@@ -55,7 +55,10 @@ export class HealthService {
                   ],
                   max_completion_tokens: 10,
                 }),
-              }).catch(() => null)
+              }).catch((err) => {
+                console.error('Groq Vision check error:', err);
+                return null;
+              })
             : Promise.resolve(null),
 
           fetch(modelUrl, {
