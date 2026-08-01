@@ -77,67 +77,69 @@ class _SymptomAnalysisScreenState extends State<SymptomAnalysisScreen> {
       }
     }
 
-    // 2. Combine with Backend Symptom API
-    try {
-      final symptomList = _selectedSymptoms.toList();
-      if (_descriptionController.text.trim().isNotEmpty) {
-        symptomList.add(_descriptionController.text.trim());
-      }
+    } else {
+      // 2. Fallback to Backend Symptom API if NO image is uploaded
+      try {
+        final symptomList = _selectedSymptoms.toList();
+        if (_descriptionController.text.trim().isNotEmpty) {
+          symptomList.add(_descriptionController.text.trim());
+        }
 
-      final backendResult = await ApiClient.analyzeSymptoms(
-        symptomList,
-        species: 'Cattle',
-      );
+        final backendResult = await ApiClient.analyzeSymptoms(
+          symptomList,
+          species: 'Cattle',
+        );
 
-      if (result == null && backendResult.isNotEmpty) {
-        final analysisStr = backendResult['analysis']?.toString() ?? '';
-        final risk = backendResult['riskLevel']?.toString() ?? 'HIGH';
+        if (backendResult.isNotEmpty) {
+          final analysisStr = backendResult['analysis']?.toString() ?? '';
+          final risk = backendResult['riskLevel']?.toString() ?? 'HIGH';
 
-        // Extract actions dynamically from AI response if possible
-        final List<String> actions = [];
-        for (var line in analysisStr.split('\n')) {
-          final trimmed = line.trim();
-          if (trimmed.startsWith(RegExp(r'^[-*•\d\.\)]+'))) {
-            final sanitized = trimmed.replaceFirst(RegExp(r'^[-*•\d\.\)\s]+'), '').trim();
-            if (sanitized.isNotEmpty && sanitized.length > 5) {
-              actions.add(sanitized);
+          // Extract actions dynamically from AI response if possible
+          final List<String> actions = [];
+          for (var line in analysisStr.split('\n')) {
+            final trimmed = line.trim();
+            if (trimmed.startsWith(RegExp(r'^[-*•\d\.\)]+'))) {
+              final sanitized = trimmed.replaceFirst(RegExp(r'^[-*•\d\.\)\s]+'), '').trim();
+              if (sanitized.isNotEmpty && sanitized.length > 5) {
+                actions.add(sanitized);
+              }
             }
           }
-        }
-        if (actions.isEmpty) {
-          actions.addAll([
-            'আক্রান্ত পশুকে ফার্মের অন্যান্য সুস্থ পশু থেকে বিচ্ছিন্ন স্থানে কোয়ারেন্টাইন করুন।',
-            'পশুর খাবারের পাত্র ও পানের পানি আলাদা রাখুন।',
-            'জরুরি ভিত্তিতে রেজিস্টার্ড ভেটেরিনারি সার্জনের শরণাপন্ন হন।',
-          ]);
-        }
+          if (actions.isEmpty) {
+            actions.addAll([
+              'আক্রান্ত পশুকে ফার্মের অন্যান্য সুস্থ পশু থেকে বিচ্ছিন্ন স্থানে কোয়ারেন্টাইন করুন।',
+              'পশুর খাবারের পাত্র ও পানের পানি আলাদা রাখুন।',
+              'জরুরি ভিত্তিতে রেজিস্টার্ড ভেটেরিনারি সার্জনের শরণাপন্ন হন।',
+            ]);
+          }
 
-        // Try to identify the disease name from the analysis string
-        String diseaseTitle = 'উপসর্গভিত্তিক AI বিশ্লেষণ (Symptom Analysis)';
-        if (analysisStr.contains('ল্যাম্পি') || _selectedSymptoms.contains('ত্বকে গুটি/ল্যাম্প')) {
-          diseaseTitle = 'ল্যাম্পি স্কিন ডিজিজ (LSD)';
-        } else if (analysisStr.contains('খুরা')) {
-          diseaseTitle = 'খুরা রোগ (FMD)';
-        } else if (analysisStr.contains('তড়কা')) {
-          diseaseTitle = 'তড়কা রোগ (Anthrax)';
-        } else if (analysisStr.contains('ওলান পাকা') || analysisStr.contains('ম্যাসটাইটিস')) {
-          diseaseTitle = 'ওলান পাকা রোগ (Mastitis)';
-        } else if (analysisStr.contains('বাদলা')) {
-          diseaseTitle = 'বাদলা রোগ (Black Quarter)';
-        }
+          // Try to identify the disease name from the analysis string
+          String diseaseTitle = 'উপসর্গভিত্তিক AI বিশ্লেষণ (Symptom Analysis)';
+          if (analysisStr.contains('ল্যাম্পি') || _selectedSymptoms.contains('ত্বকে গুটি/ল্যাম্প')) {
+            diseaseTitle = 'ল্যাম্পি স্কিন ডিজিজ (LSD)';
+          } else if (analysisStr.contains('খুরা')) {
+            diseaseTitle = 'খুরা রোগ (FMD)';
+          } else if (analysisStr.contains('তড়কা')) {
+            diseaseTitle = 'তড়কা রোগ (Anthrax)';
+          } else if (analysisStr.contains('ওলান পাকা') || analysisStr.contains('ম্যাসটাইটিস')) {
+            diseaseTitle = 'ওলান পাকা রোগ (Mastitis)';
+          } else if (analysisStr.contains('বাদলা')) {
+            diseaseTitle = 'বাদলা রোগ (Black Quarter)';
+          }
 
-        result = {
-          'possibleDiagnosis': diseaseTitle,
-          'riskLevel': risk == 'EMERGENCY' ? 'উচ্চ ঝুঁকি (জরুরি ভেট পরামর্শ)' : (risk == 'VET_SOON' ? 'মাঝারি ঝুঁকি (ভেটেরিনারি পরামর্শ)' : 'স্বাভাবিক ঝুঁকি'),
-          'confidenceScore': 95.0,
-          'summaryText': analysisStr.isNotEmpty
-              ? analysisStr
-              : 'AI সিম্পটম অ্যানালাইজার পশুর প্রদত্ত উপসর্গ অনুযায়ী বিশ্লেষণ সম্পন্ন করেছে।',
-          'recommendedActions': actions,
-        };
+          result = {
+            'possibleDiagnosis': diseaseTitle,
+            'riskLevel': risk == 'EMERGENCY' ? 'উচ্চ ঝুঁকি (জরুরি ভেট পরামর্শ)' : (risk == 'VET_SOON' ? 'মাঝারি ঝুঁকি (ভেটেরিনারি পরামর্শ)' : 'স্বাভাবিক ঝুঁকি'),
+            'confidenceScore': 95.0,
+            'summaryText': analysisStr.isNotEmpty
+                ? analysisStr
+                : 'AI সিম্পটম অ্যানালাইজার পশুর প্রদত্ত উপসর্গ অনুযায়ী বিশ্লেষণ সম্পন্ন করেছে।',
+            'recommendedActions': actions,
+          };
+        }
+      } catch (e) {
+        debugPrint('Backend symptom check error: $e');
       }
-    } catch (e) {
-      debugPrint('Backend symptom check error: $e');
     }
     
     if (mounted) {
