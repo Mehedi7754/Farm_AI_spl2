@@ -37,6 +37,43 @@ class _AnimalListScreenState extends ConsumerState<AnimalListScreen> {
     }
   }
 
+  void _confirmDelete(BuildContext context, Map<String, dynamic> cow) {
+    final name = (cow['name'] ?? cow['species'] ?? 'গবাদিপশু').toString();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('গবাদিপশু মুছে ফেলুন'),
+        content: Text('"$name" মুছে ফেলতে চান? এটি কলার সংযোগও বিচ্ছিন্ন করবে।'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('না', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await ref.read(livestockProvider.notifier).deleteLivestock(cow['id'].toString());
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('গবাদিপশুটি মুছে ফেলা হয়েছে 🗑️'), backgroundColor: Colors.red),
+                );
+              }
+            },
+            child: const Text('হ্যাঁ, মুছুন', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(livestockProvider.notifier).refresh();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final filteredLivestockState = ref.watch(filteredLivestockProvider);
@@ -93,24 +130,23 @@ class _AnimalListScreenState extends ConsumerState<AnimalListScreen> {
             final smartCollar = cow['smartCollar'] as Map<String, dynamic>?;
             final lat = (smartCollar?['lastLatitude'] as num?)?.toDouble() 
                 ?? (cow['locationLat'] as num?)?.toDouble() 
-                ?? (cow['deviceLat'] as num?)?.toDouble() 
-                ?? 0.0;
+                ?? (cow['deviceLat'] as num?)?.toDouble();
             final lng = (smartCollar?['lastLongitude'] as num?)?.toDouble() 
                 ?? (cow['locationLng'] as num?)?.toDouble() 
-                ?? (cow['deviceLng'] as num?)?.toDouble() 
-                ?? 0.0;
+                ?? (cow['deviceLng'] as num?)?.toDouble();
             
             final isBound = cow['isBound'] == true || smartCollar != null;
+            final hasCoords = lat != null && lng != null && lat != 0.0 && lng != 0.0;
 
-            if ((lat == 0.0 || lng == 0.0) && isBound) {
-              hasValidGps = false;
-              mapCenter = const LatLng(23.8103, 90.4125);
-            } else if (lat != 0.0 && lng != 0.0) {
+            if (hasCoords) {
               hasValidGps = true;
               mapCenter = LatLng(lat, lng);
+            } else if (isBound) {
+              hasValidGps = false;
+              mapCenter = const LatLng(23.8103, 90.4125);
             }
             
-            mapLabel = (cow['name'] ?? '').toString();
+            mapLabel = (cow['name'] ?? cow['species'] ?? '').toString();
           }
 
           return SingleChildScrollView(
@@ -320,6 +356,7 @@ class _AnimalListScreenState extends ConsumerState<AnimalListScreen> {
                           setState(() => _selectedCattleIndex = index);
                           context.push('/animals/detail', extra: cow);
                         },
+                        onLongPress: () => _confirmDelete(context, Map<String, dynamic>.from(cow)),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                           decoration: BoxDecoration(
@@ -349,7 +386,7 @@ class _AnimalListScreenState extends ConsumerState<AnimalListScreen> {
                                     Row(
                                       children: [
                                         Text(
-                                          (cow['name'] ?? '').toString(),
+                                          (cow['name'] ?? cow['species'] ?? '').toString(),
                                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF0F172A)),
                                         ),
                                         const SizedBox(width: 6),

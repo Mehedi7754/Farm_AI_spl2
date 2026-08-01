@@ -7,6 +7,10 @@ export class CreateLivestockDto {
   farmerId: string;
 
   @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
   @IsNotEmpty()
   species: string;
 

@@ -144,6 +144,7 @@ model Livestock {
   id                String             @id @default(uuid())
   farmerId          String
   farmer            User               @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  name              String?
   species           String
   breed             String
   dateOfBirth       DateTime

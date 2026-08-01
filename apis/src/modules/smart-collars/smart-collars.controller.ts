@@ -33,9 +33,9 @@ export class SmartCollarsController {
     return this.smartCollarsService.getAllWithLatestLocation();
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.smartCollarsService.findOne(id);
+  @Get('device/:deviceCode')
+  findByDeviceCode(@Param('deviceCode') deviceCode: string) {
+    return this.smartCollarsService.findByDeviceCode(deviceCode);
   }
 
   @Get('livestock/:livestockId')
@@ -43,9 +43,9 @@ export class SmartCollarsController {
     return this.smartCollarsService.findByLivestock(livestockId);
   }
 
-  @Get('device/:deviceCode')
-  findByDeviceCode(@Param('deviceCode') deviceCode: string) {
-    return this.smartCollarsService.findByDeviceCode(deviceCode);
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.smartCollarsService.findOne(id);
   }
 
   @Patch(':id')

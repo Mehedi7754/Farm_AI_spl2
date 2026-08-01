@@ -6,7 +6,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
 class LivestockNotifier extends AsyncNotifier<List<dynamic>> {
-  static const String _storageKey = 'farm_ai_persisted_livestock_v2';
+  static const String _storageKey = 'farm_ai_persisted_livestock_v3';
 
   @override
   Future<List<dynamic>> build() async {
@@ -28,7 +28,7 @@ class LivestockNotifier extends AsyncNotifier<List<dynamic>> {
         final item = Map<String, dynamic>.from(syncedLocalList[i]);
         final id = item['id'].toString();
         if (id.startsWith('cattle-')) {
-          final collarDeviceCode = item['collarId'];
+          final collarDeviceCode = item['collarId'] ?? item['smartCollar']?['deviceCode'];
           final Map<String, dynamic> postData = Map.from(item)
             ..remove('id')
             ..remove('collarId')
@@ -66,23 +66,73 @@ class LivestockNotifier extends AsyncNotifier<List<dynamic>> {
 
     try {
       final remoteData = await ApiClient.getLivestock(farmerId);
-      final mergedMap = <String, dynamic>{};
+      final List<dynamic> resultList = [];
 
-      // Put local saved list first
-      for (var item in syncedLocalList) {
-        final key = (item['id'] ?? item['name']).toString();
-        mergedMap[key] = item;
+      // Map remote items and merge local names / device codes
+      for (var rawRemote in remoteData) {
+        final remoteItem = Map<String, dynamic>.from(rawRemote);
+        final remoteCollar = remoteItem['smartCollar'] as Map<String, dynamic>?;
+        final deviceCode = remoteCollar?['deviceCode'];
+
+        // Find matching local item by ID or collar code to preserve user-assigned name
+        Map<String, dynamic>? localMatch;
+        for (var l in syncedLocalList) {
+          if (l is Map) {
+            if (l['id'] == remoteItem['id'] || (deviceCode != null && (l['collarId'] == deviceCode || l['smartCollar']?['deviceCode'] == deviceCode))) {
+              localMatch = Map<String, dynamic>.from(l);
+              break;
+            }
+          }
+        }
+
+        if (localMatch != null && localMatch['name'] != null && localMatch['name'].toString().isNotEmpty) {
+          remoteItem['name'] = localMatch['name'];
+        }
+
+        // If smartCollar GPS is 0.0 or null, attempt device location fetch
+        final lat = (remoteCollar?['lastLatitude'] as num?)?.toDouble() ?? 0.0;
+        final lng = (remoteCollar?['lastLongitude'] as num?)?.toDouble() ?? 0.0;
+        if ((lat == 0.0 || lng == 0.0) && deviceCode != null) {
+          try {
+            final loc = await ApiClient.getDeviceLocation(deviceCode.toString());
+            if (loc != null && (loc['latitude'] as num?)?.toDouble() != 0.0) {
+              remoteItem['smartCollar'] = {
+                ...?remoteCollar,
+                'lastLatitude': (loc['latitude'] as num?)?.toDouble(),
+                'lastLongitude': (loc['longitude'] as num?)?.toDouble(),
+                'isOnline': loc['isOnline'] == true,
+              };
+            }
+          } catch (_) {}
+        }
+
+        resultList.add(remoteItem);
       }
 
-      // Merge remote data
-      for (var item in remoteData) {
-        final key = (item['id'] ?? item['name']).toString();
-        mergedMap[key] = item;
+      // Add any unsynced local-only cattle (IDs starting with cattle-) that aren't in remote
+      for (var l in syncedLocalList) {
+        if (l is Map && l['id']?.toString().startsWith('cattle-') == true) {
+          final lItem = Map<String, dynamic>.from(l);
+          final collarCode = lItem['collarId'] ?? lItem['smartCollar']?['deviceCode'];
+          if (collarCode != null) {
+            try {
+              final loc = await ApiClient.getDeviceLocation(collarCode.toString());
+              if (loc != null) {
+                lItem['smartCollar'] = {
+                  'deviceCode': collarCode,
+                  'lastLatitude': (loc['latitude'] as num?)?.toDouble(),
+                  'lastLongitude': (loc['longitude'] as num?)?.toDouble(),
+                  'isOnline': loc['isOnline'] == true,
+                };
+              }
+            } catch (_) {}
+          }
+          resultList.add(lItem);
+        }
       }
 
-      final mergedList = mergedMap.values.toList();
-      await _saveLocalLivestock(mergedList);
-      return mergedList;
+      await _saveLocalLivestock(resultList);
+      return resultList;
     } catch (e) {
       debugPrint('Remote livestock fetch error: $e. Returning persisted local list.');
       return syncedLocalList;
@@ -124,21 +174,39 @@ class LivestockNotifier extends AsyncNotifier<List<dynamic>> {
     final collarDeviceCode = newAnimalData['collarId'];
     final Map<String, dynamic> postData = Map.from(newAnimalData)..remove('collarId');
 
+    // Fetch live device location immediately if collar code is given
+    Map<String, dynamic>? initialCollar;
+    if (collarDeviceCode != null) {
+      double lat = 0.0;
+      double lng = 0.0;
+      bool isOnline = true;
+      try {
+        final collarInfo = await ApiClient.getDeviceLocation(collarDeviceCode.toString());
+        if (collarInfo != null) {
+          lat = (collarInfo['latitude'] as num?)?.toDouble() ?? 0.0;
+          lng = (collarInfo['longitude'] as num?)?.toDouble() ?? 0.0;
+          isOnline = collarInfo['isOnline'] == true;
+        }
+      } catch (_) {}
+
+      initialCollar = {
+        'deviceCode': collarDeviceCode,
+        'isOnline': isOnline,
+        'lastLatitude': lat,
+        'lastLongitude': lng,
+      };
+    }
+
     final newItem = {
       'id': 'cattle-${DateTime.now().millisecondsSinceEpoch}',
       ...postData,
       'farmerId': farmerId,
       'createdAt': DateTime.now().toIso8601String(),
+      if (initialCollar != null) 'smartCollar': initialCollar,
     };
 
     final currentList = state.value ?? [];
-    final updatedList = [
-      {
-        ...newItem,
-        if (collarDeviceCode != null) 'smartCollar': {'deviceCode': collarDeviceCode, 'isOnline': true, 'lastLatitude': 0.0, 'lastLongitude': 0.0}
-      },
-      ...currentList
-    ];
+    final updatedList = [newItem, ...currentList];
 
     state = AsyncValue.data(updatedList);
     await _saveLocalLivestock(updatedList);
@@ -150,7 +218,7 @@ class LivestockNotifier extends AsyncNotifier<List<dynamic>> {
       });
 
       if (collarDeviceCode != null && created['id'] != null) {
-        final collarInfo = await ApiClient.getDeviceLocation(collarDeviceCode);
+        final collarInfo = await ApiClient.getDeviceLocation(collarDeviceCode.toString());
         if (collarInfo != null && collarInfo['id'] != null) {
           await ApiClient.updateCollar(collarInfo['id'], {
             'livestockId': created['id'],

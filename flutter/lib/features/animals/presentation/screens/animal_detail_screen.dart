@@ -179,7 +179,7 @@ class _AnimalDetailScreenState extends ConsumerState<AnimalDetailScreen> {
 
   Widget _buildProfileCard() {
     final cow = widget.animalData ?? {};
-    final name = (cow['name'] ?? 'অজানা নাম').toString();
+    final name = (cow['name'] ?? cow['species'] ?? 'অজানা নাম').toString();
     final breed = (cow['breed'] ?? 'অজানা জাত').toString();
     final weight = (cow['weight'] ?? '0').toString();
     final collarId = (cow['collarId'] ?? 'N/A').toString();
