@@ -1,12 +1,117 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/l10n/strings_bn.dart';
+import '../providers/livestock_provider.dart';
 
-class AnimalDetailScreen extends StatelessWidget {
-  const AnimalDetailScreen({super.key});
+class AnimalDetailScreen extends ConsumerStatefulWidget {
+  final Map<String, dynamic>? animalData;
+  const AnimalDetailScreen({super.key, this.animalData});
+
+  @override
+  ConsumerState<AnimalDetailScreen> createState() => _AnimalDetailScreenState();
+}
+
+class _AnimalDetailScreenState extends ConsumerState<AnimalDetailScreen> {
+  final List<String> _notes = [];
+
+  void _showAddNoteModal(BuildContext context) {
+    final noteCtrl = TextEditingController();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+            top: 20,
+            left: 20,
+            right: 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('নতুন স্বাস্থ্য নোট', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 10),
+              TextField(
+                controller: noteCtrl,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: 'এখানে নোট লিখুন...',
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () {
+                    if (noteCtrl.text.trim().isNotEmpty) {
+                      setState(() {
+                        _notes.insert(0, noteCtrl.text.trim());
+                      });
+                      Navigator.pop(ctx);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('নোট যুক্ত করা হয়েছে 📝'), backgroundColor: Color(0xFF064E3B)),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF064E3B),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('সংরক্ষণ করুন', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _confirmDelete(BuildContext context, Map<String, dynamic> cow) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('গবাদিপশু মুছে ফেলুন'),
+        content: const Text('আপনি কি নিশ্চিত যে আপনি এই গবাদিপশুটি মুছে ফেলতে চান? এটি কলার সংযোগও বিচ্ছিন্ন করবে।'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('না', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await ref.read(livestockProvider.notifier).deleteLivestock(cow['id'].toString());
+              if (context.mounted) {
+                context.pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('গবাদিপশুটি সফলভাবে মুছে ফেলা হয়েছে 🗑️'), backgroundColor: Colors.red),
+                );
+              }
+            },
+            child: const Text('হ্যাঁ, মুছুন', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final cow = widget.animalData ?? {};
+    final milkYield = (cow['dailyMilkYield'] ?? '0').toString();
+    // In a real scenario, body temp comes from smart collar data
+    final temp = 'স্বাভাবিক'; 
+
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       appBar: PreferredSize(
@@ -23,6 +128,10 @@ class AnimalDetailScreen extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.white),
           ),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.delete_forever_rounded, color: Colors.white, size: 22),
+              onPressed: () => _confirmDelete(context, cow),
+            ),
             IconButton(
               icon: const Icon(Icons.share_rounded, color: Colors.white, size: 20),
               onPressed: () {},
@@ -47,9 +156,9 @@ class AnimalDetailScreen extends StatelessWidget {
             // 3. STATS GRID (MILK & BODY TEMP)
             Row(
               children: [
-                Expanded(child: _buildDetailStatCard(context, StringsBn.milkProduction, '১৮.৫ লিটার/দিন', '+০.৫ লিটার (বৃদ্ধি)', Icons.water_drop_rounded, const Color(0xFF0284C7))),
+                Expanded(child: _buildDetailStatCard(context, StringsBn.milkProduction, '$milkYield লিটার/দিন', 'গড় উৎপাদন', Icons.water_drop_rounded, const Color(0xFF0284C7))),
                 const SizedBox(width: 10),
-                Expanded(child: _buildDetailStatCard(context, StringsBn.bodyTemp, '১০২.৪° F', 'স্বাভাবিক তাপমাত্রা ✓', Icons.thermostat_rounded, const Color(0xFF059669))),
+                Expanded(child: _buildDetailStatCard(context, StringsBn.bodyTemp, temp, 'বর্তমান অবস্থা', Icons.thermostat_rounded, const Color(0xFF059669))),
               ],
             ),
             const SizedBox(height: 12),
@@ -60,14 +169,7 @@ class AnimalDetailScreen extends StatelessWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('গবাদিপশুর স্বাস্থ্য নোট তৈরি করা হয়েছে 📝'),
-              backgroundColor: Color(0xFF064E3B),
-            ),
-          );
-        },
+        onPressed: () => _showAddNoteModal(context),
         backgroundColor: const Color(0xFF064E3B),
         icon: const Icon(Icons.edit_note_rounded, color: Colors.white),
         label: const Text('নোট যুক্ত করুন', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -76,6 +178,26 @@ class AnimalDetailScreen extends StatelessWidget {
   }
 
   Widget _buildProfileCard() {
+    final cow = widget.animalData ?? {};
+    final name = (cow['name'] ?? 'অজানা নাম').toString();
+    final breed = (cow['breed'] ?? 'অজানা জাত').toString();
+    final weight = (cow['weight'] ?? '0').toString();
+    final collarId = (cow['collarId'] ?? 'N/A').toString();
+    final health = (cow['health'] ?? cow['status'] ?? 'সুস্থ').toString();
+    
+    // Parse DOB to Age if available
+    String ageStr = 'অজানা বয়স';
+    if (cow['dateOfBirth'] != null) {
+      try {
+        final dob = DateTime.parse(cow['dateOfBirth']);
+        final days = DateTime.now().difference(dob).inDays;
+        final years = (days / 365).toStringAsFixed(1);
+        ageStr = '$years বছর';
+      } catch (e) {
+        // ignore
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -106,31 +228,41 @@ class AnimalDetailScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'লালমনি (গাভী নং ১)',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                    Expanded(
+                      child: Text(
+                        name,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFECFDF5),
+                        color: health.contains('সুস্থ') ? const Color(0xFFECFDF5) : const Color(0xFFFEF3C7),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text('সুস্থ (৯৮%)', style: TextStyle(color: Color(0xFF059669), fontSize: 10, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        health, 
+                        style: TextStyle(
+                          color: health.contains('সুস্থ') ? const Color(0xFF059669) : const Color(0xFFD97706), 
+                          fontSize: 10, 
+                          fontWeight: FontWeight.bold
+                        )
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 2),
-                const Text(
-                  'জাত: হোলস্টাইন ফ্রিজিয়ান • বয়স: ৩.৫ বছর',
-                  style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
+                Text(
+                  'জাত: $breed • বয়স: $ageStr',
+                  style: const TextStyle(color: Color(0xFF64748B), fontSize: 11),
                 ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    _buildMiniStat(StringsBn.animalWeight, '৩৮০ কেজি'),
+                    _buildMiniStat(StringsBn.animalWeight, '$weight কেজি'),
                     const SizedBox(width: 16),
-                    _buildMiniStat('স্মার্ট কলার আইডি', '#101-BD'),
+                    _buildMiniStat('স্মার্ট কলার আইডি', collarId),
                   ],
                 ),
               ],
@@ -142,8 +274,18 @@ class AnimalDetailScreen extends StatelessWidget {
   }
 
   Widget _buildSmartCollarButton(BuildContext context) {
+    final collarId = widget.animalData?['collarId']?.toString();
+    
     return InkWell(
-      onTap: () => context.push('/animals/collar'),
+      onTap: () {
+        if (collarId != null && collarId.isNotEmpty && collarId != 'N/A') {
+          context.push('/animals/collar', extra: collarId);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('এই গবাদিপশুর সাথে কোনো স্মার্ট কলার সংযুক্ত নেই।'), backgroundColor: Color(0xFFDC2626)),
+          );
+        }
+      },
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(14),
@@ -248,6 +390,9 @@ class AnimalDetailScreen extends StatelessWidget {
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
         ),
         const SizedBox(height: 8),
+        if (_notes.isNotEmpty)
+          ..._notes.map((note) => _buildHistoryItem(context, note, 'নতুন নোট (ম্যানুয়াল)', Icons.note_alt_rounded, const Color(0xFFF3E8FF), const Color(0xFF7E22CE))),
+        
         _buildHistoryItem(context, 'খুরা রোগ (FMD) ২য় ডোজ সম্পন্ন', '১৫ মে, ২০২৬ • ডাঃ মোঃ আব্দুর রাজ্জাক', Icons.vaccines_rounded, const Color(0xFFECFDF5), const Color(0xFF059669)),
         _buildHistoryItem(context, 'কৃমিনাশক ড্যাশবোর্ড চিকিৎসা', '০২ মে, ২০২৬ • সফল প্রয়োগ', Icons.assignment_turned_in_rounded, const Color(0xFFEFF6FF), const Color(0xFF0284C7)),
       ],

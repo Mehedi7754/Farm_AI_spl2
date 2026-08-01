@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'core/network/api_client.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/router.dart';
@@ -68,6 +69,17 @@ Future<void> setupFirebase() async {
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(incomingCallChannel);
+
+    // Explicitly request OS notification permissions (Android 13+ POST_NOTIFICATIONS & iOS)
+    try {
+      await Permission.notification.request();
+    } catch (e) {
+      debugPrint('[Permission] Notification request error: $e');
+    }
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.requestNotificationsPermission();
 
     // Initialize local notifications
     const AndroidInitializationSettings androidSettings =

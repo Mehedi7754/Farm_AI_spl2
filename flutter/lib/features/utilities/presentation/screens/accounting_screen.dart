@@ -1,59 +1,28 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/network/api_client.dart';
+import '../providers/financial_provider.dart';
 
-class AccountingScreen extends StatefulWidget {
+class AccountingScreen extends ConsumerStatefulWidget {
   const AccountingScreen({super.key});
 
   @override
-  State<AccountingScreen> createState() => _AccountingScreenState();
+  ConsumerState<AccountingScreen> createState() => _AccountingScreenState();
 }
 
-class _AccountingScreenState extends State<AccountingScreen> {
-  final List<Map<String, dynamic>> _transactions = [
-    {
-      'id': '1',
-      'title': '২৮ লিটার দুধ বিক্রয় (লালমনি & ধলা)',
-      'category': 'দুধ বিক্রি',
-      'amount': 1960,
-      'isIncome': true,
-      'date': 'আজ, সকাল ০৮:৩০',
-      'cattle': 'গাভী নং ১ & ২',
-      'timestamp': DateTime.now(),
-    },
-    {
-      'id': '2',
-      'title': '১ বস্তা দানাদার পশু খাদ্য ক্রয়',
-      'category': 'খাদ্য ক্রয়',
-      'amount': 1450,
-      'isIncome': false,
-      'date': 'আজ, বিকেল ০৪:১৫',
-      'cattle': 'সকল গবাদিপশু',
-      'timestamp': DateTime.now(),
-    },
-    {
-      'id': '3',
-      'title': '২৫ লিটার দুধ বিক্রয়',
-      'category': 'দুধ বিক্রি',
-      'amount': 1750,
-      'isIncome': true,
-      'date': 'গতকাল, সকাল ০৮:০০',
-      'cattle': 'গাভী নং ১',
-      'timestamp': DateTime.now().subtract(const Duration(days: 1)),
-    },
-    {
-      'id': '4',
-      'title': 'FMD ভেক্সিন ও ডাক্তার ফি',
-      'category': 'চিকিৎসা',
-      'amount': 500,
-      'isIncome': false,
-      'date': '৪ দিন আগে',
-      'cattle': 'গাভী নং ৩',
-      'timestamp': DateTime.now().subtract(const Duration(days: 4)),
-    },
-  ];
-
+class _AccountingScreenState extends ConsumerState<AccountingScreen> {
   String _selectedCategory = 'সকল';
-  String _selectedDateRange = 'সকল'; // 'আজ', 'এই সপ্তাহ', 'এই মাস', 'সকল'
+  String _selectedDateRange = 'সকল';
+
+  @override
+  void initState() {
+    super.initState();
+    // Fetch latest in background if needed
+    Future.microtask(() => ref.read(financialProvider.notifier).refresh());
+  }
 
   void _showAddOrEditTransactionModal({Map<String, dynamic>? existingTx}) {
     final titleCtrl = TextEditingController(text: existingTx?['title'] ?? '');
@@ -135,35 +104,35 @@ class _AccountingScreenState extends State<AccountingScreen> {
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        if (titleCtrl.text.isNotEmpty && amountCtrl.text.isNotEmpty) {
+                      onPressed: () async {
+                        if (titleCtrl.text.trim().isNotEmpty && amountCtrl.text.trim().isNotEmpty) {
                           final parsedAmount = int.tryParse(amountCtrl.text.replaceAll(',', '')) ?? 0;
-                          setState(() {
-                            if (existingTx != null) {
-                              existingTx['title'] = titleCtrl.text;
-                              existingTx['amount'] = parsedAmount;
-                              existingTx['isIncome'] = isIncome;
-                              existingTx['category'] = category;
-                            } else {
-                              _transactions.insert(0, {
-                                'id': '${_transactions.length + 1}',
-                                'title': titleCtrl.text,
-                                'category': category,
-                                'amount': parsedAmount,
-                                'isIncome': isIncome,
-                                'date': 'আজ, মাত্র',
-                                'cattle': 'রহিম ফার্ম',
-                                'timestamp': DateTime.now(),
-                              });
-                            }
-                          });
+                          final now = DateTime.now();
+                          
+                          final newRecord = {
+                            'id': existingTx?['id'] ?? 'tx-${now.millisecondsSinceEpoch}',
+                            'title': titleCtrl.text.trim(),
+                            'amount': parsedAmount,
+                            'isIncome': isIncome,
+                            'category': category,
+                            'date': '${now.day}/${now.month}/${now.year}',
+                            'cattle': category,
+                            'timestamp': now.toIso8601String(),
+                          };
+
                           Navigator.pop(ctx);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(existingTx != null ? 'হিসেব পরিবর্তন করা হয়েছে' : 'নতুন লেনদেন সফলভাবে যুক্ত করা হয়েছে'),
-                              backgroundColor: const Color(0xFF059669),
-                            ),
-                          );
+
+                          await ref.read(financialProvider.notifier).addOrUpdateTransaction(newRecord);
+
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('নতুন হিসাব সফলভাবে সংরক্ষণ হয়েছে 📝'),
+                                backgroundColor: Color(0xFF059669),
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          }
                         }
                       },
                       style: ElevatedButton.styleFrom(
@@ -195,14 +164,20 @@ class _AccountingScreenState extends State<AccountingScreen> {
             child: const Text('বাতিল', style: TextStyle(color: Color(0xFF64748B))),
           ),
           ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _transactions.removeWhere((t) => t['id'] == id);
-              });
+            onPressed: () async {
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('হিসেবটি মুছে ফেলা হয়েছে')),
-              );
+              
+              await ref.read(financialProvider.notifier).deleteTransaction(id);
+              
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('হিসেবটি সফলভাবে মুছে ফেলা হয়েছে 🗑️'),
+                    backgroundColor: Color(0xFF059669),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
             child: const Text('মুছে ফেলুন', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -238,10 +213,29 @@ class _AccountingScreenState extends State<AccountingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final financialState = ref.watch(financialProvider);
+    final _transactions = financialState.value ?? [];
+
+    if (financialState.isLoading && _transactions.isEmpty) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF059669),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Colors.white),
+            onPressed: () => context.pop(),
+          ),
+          title: const Text('খামারের হিসাব খাতা', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
+        body: const Center(child: CircularProgressIndicator(color: Color(0xFF059669))),
+      );
+    }
+
     final now = DateTime.now();
 
     final filteredByDate = _transactions.where((t) {
-      final ts = t['timestamp'] as DateTime?;
+      final tsRaw = t['timestamp'];
+      final ts = tsRaw is DateTime ? tsRaw : (tsRaw != null ? DateTime.tryParse(tsRaw.toString()) : null);
       if (ts == null) return true;
 
       if (_selectedDateRange == 'আজ') {

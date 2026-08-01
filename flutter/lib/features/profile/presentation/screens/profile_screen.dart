@@ -48,6 +48,9 @@ class ProfileScreen extends ConsumerWidget {
                 String selectedDistrict = districts.contains(user?['location']?.toString())
                     ? user!['location'].toString()
                     : districts[0];
+                String selectedFarmDistrict = districts.contains(user?['farmLocation']?.toString())
+                    ? user!['farmLocation'].toString()
+                    : selectedDistrict;
 
                 return StatefulBuilder(
                   builder: (context, setModalState) {
@@ -98,6 +101,29 @@ class ProfileScreen extends ConsumerWidget {
                               }
                             },
                           ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value: selectedFarmDistrict,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: '📍 খামারের অবস্থান (Farm Location for Weather)',
+                              helperText: 'এই জেলার আবহাওয়া ও সেবা দেখাবে',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: districts.map((district) {
+                              return DropdownMenuItem<String>(
+                                value: district,
+                                child: Text(district, style: const TextStyle(fontSize: 14)),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setModalState(() {
+                                  selectedFarmDistrict = val;
+                                });
+                              }
+                            },
+                          ),
                           const SizedBox(height: 20),
                           SizedBox(
                             width: double.infinity,
@@ -109,6 +135,7 @@ class ProfileScreen extends ConsumerWidget {
                                   if (nameCtrl.text.trim().isNotEmpty) 'name': nameCtrl.text.trim(),
                                   if (phoneCtrl.text.trim().isNotEmpty) 'phoneNumber': phoneCtrl.text.trim(),
                                   'location': selectedDistrict,
+                                  'farmLocation': selectedFarmDistrict,
                                 };
 
                                 final ok = await ref.read(authProvider.notifier).updateProfile(updates);

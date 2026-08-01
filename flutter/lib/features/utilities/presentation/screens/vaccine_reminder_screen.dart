@@ -1,8 +1,13 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz_data;
 import '../../../animals/presentation/providers/livestock_provider.dart';
 
 class VaccineReminderScreen extends ConsumerStatefulWidget {
@@ -18,12 +23,57 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
 
   String _selectedCattle = 'সকল গবাদিপশু (All Cattle)';
 
-  final List<Map<String, dynamic>> _reminders = [];
+  List<Map<String, dynamic>> _reminders = [];
+
+  static const String _prefKey = 'vaccine_reminders_v1';
 
   @override
   void initState() {
     super.initState();
     _initNotifications();
+    _loadReminders();
+  }
+
+  Future<void> _loadReminders() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_prefKey);
+      if (raw != null) {
+        final decoded = jsonDecode(raw) as List<dynamic>;
+        if (mounted) {
+          setState(() {
+            _reminders = decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+            // Restore Color objects (stored as int)
+            for (var r in _reminders) {
+              if (r['colorValue'] != null) {
+                r['color'] = Color(r['colorValue'] as int);
+              } else {
+                r['color'] = const Color(0xFF059669);
+              }
+              if (r['isCompleted'] == null) r['isCompleted'] = false;
+            }
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Load reminders error: $e');
+    }
+  }
+
+  Future<void> _saveReminders() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      // Serialize: Colors are not JSON serializable, store as int
+      final serializable = _reminders.map((r) {
+        final copy = Map<String, dynamic>.from(r);
+        copy['colorValue'] = (r['color'] as Color?)?.value;
+        copy.remove('color');
+        return copy;
+      }).toList();
+      await prefs.setString(_prefKey, jsonEncode(serializable));
+    } catch (e) {
+      debugPrint('Save reminders error: $e');
+    }
   }
 
   void _initNotifications() async {
@@ -32,10 +82,18 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
     const initSettings = InitializationSettings(android: androidSettings);
 
     try {
+      tz_data.initializeTimeZones();
       await _notificationsPlugin.initialize(settings: initSettings);
-      setState(() {
-        _isNotificationInitialized = true;
-      });
+
+      // Request system notification permission explicitly
+      try {
+        await Permission.notification.request();
+      } catch (_) {}
+      await _notificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
+
+      if (mounted) setState(() => _isNotificationInitialized = true);
     } catch (e) {
       debugPrint('Notification init error: $e');
     }
@@ -45,6 +103,7 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
     required int id,
     required String title,
     required String body,
+    DateTime? scheduledTime,
   }) async {
     if (!_isNotificationInitialized) return;
 
@@ -58,14 +117,28 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
     const details = NotificationDetails(android: androidDetails);
 
     try {
-      await _notificationsPlugin.show(
-        id: id,
-        title: title,
-        body: body,
-        notificationDetails: details,
-      );
+      if (scheduledTime != null && scheduledTime.isAfter(DateTime.now())) {
+        // Schedule at the user-selected future time
+        final tzTime = tz.TZDateTime.from(scheduledTime, tz.local);
+        await _notificationsPlugin.zonedSchedule(
+          id: id,
+          title: title,
+          body: body,
+          scheduledDate: tzTime,
+          notificationDetails: details,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+                  );
+      } else {
+        // Fire immediately if time is in the past or not provided
+        await _notificationsPlugin.show(
+          id: id,
+          title: title,
+          body: body,
+          notificationDetails: details,
+        );
+      }
     } catch (e) {
-      debugPrint('Notification trigger error: $e');
+      debugPrint('Notification schedule error: $e');
     }
   }
 
@@ -306,12 +379,21 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
                                 'color': vaccineType == 'কৃমিনাশক' ? const Color(0xFFD97706) : const Color(0xFF059669),
                               });
                             });
+                            // Persist reminders to SharedPreferences
+                            _saveReminders();
 
-                            // Schedule local notification alert
+                            // Schedule notification at the user-chosen date/time
+                            final schedDT = selectedDate != null && selectedTime != null
+                                ? DateTime(
+                                    selectedDate!.year, selectedDate!.month, selectedDate!.day,
+                                    selectedTime!.hour, selectedTime!.minute,
+                                  )
+                                : null;
                             _scheduleNotification(
                               id: reminderId,
                               title: '🔔 ফার্ম ভেক্সিন রিমাইন্ডার: ${titleCtrl.text}',
-                              body: '$cattleName এর জন্য $formattedScheduleDate এ টিকা দেওয়ার সময় হয়েছে।',
+                              body: '$cattleName এর জন্য $formattedScheduleDate এ টিকা দেওয়ার সময় হয়েছে।',
+                              scheduledTime: schedDT,
                             );
 
                             Navigator.pop(ctx);
@@ -365,11 +447,18 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
   }
 
   void _deleteReminder(String id) {
+    // Cancel the scheduled notification for this reminder
+    final idInt = int.tryParse(id);
+    if (idInt != null) {
+      _notificationsPlugin.cancel(id: idInt);
+    }
     setState(() {
       _reminders.removeWhere((r) => r['id'] == id);
     });
+    // Persist the updated list
+    _saveReminders();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('টিকা সিডিউল মুছে ফেলা হয়েছে')),
+      const SnackBar(content: Text('টিকা সিডিউল মুছে ফেলা হয়েছে')),
     );
   }
 

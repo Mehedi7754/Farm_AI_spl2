@@ -80,9 +80,9 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
       {'time': '+12h', 'temp': temp.round(), 'code': 1},
     ];
 
-    double maxTemp = forecastList.isNotEmpty ? (forecastList[0]['tempMax'] as num).toDouble() : temp + 2;
-    double minTemp = forecastList.isNotEmpty ? (forecastList[0]['tempMin'] as num).toDouble() : temp - 5;
-    double precip = forecastList.isNotEmpty ? (forecastList[0]['precipitation'] as num).toDouble() : 0.0;
+    double maxTemp = forecastList.isNotEmpty ? ((forecastList[0]['tempMax'] as num?)?.toDouble() ?? (temp + 2)) : temp + 2;
+    double minTemp = forecastList.isNotEmpty ? ((forecastList[0]['tempMin'] as num?)?.toDouble() ?? (temp - 5)) : temp - 5;
+    double precip = forecastList.isNotEmpty ? ((forecastList[0]['precipitation'] as num?)?.toDouble() ?? 0.0) : 0.0;
 
     return Container(
       decoration: const BoxDecoration(
@@ -134,7 +134,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              locationName,
+                              locationName.isNotEmpty ? locationName : 'ঢাকা, বাংলাদেশ',
                               style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -350,9 +350,9 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
-                            _buildAgroMetric(Icons.water_rounded, 'Soil Moisture', '${((agroData['soilMoisture'] as num) * 100).toStringAsFixed(1)}%', const Color(0xFF0284C7)),
+                            _buildAgroMetric(Icons.water_rounded, 'মাটির আর্দ্রতা', '${(((agroData['soilMoisture'] as num?) ?? 0) * 100).toStringAsFixed(1)}%', const Color(0xFF0284C7)),
                             Container(width: 1, height: 36, color: const Color(0xFFCBD5E1)),
-                            _buildAgroMetric(Icons.thermostat_rounded, 'Soil Temp', '${(agroData['soilTemperature'] as num).toStringAsFixed(1)}°C', const Color(0xFFEA580C)),
+                            _buildAgroMetric(Icons.thermostat_rounded, 'মাটির তাপমাত্রা', '${((agroData['soilTemperature'] as num?) ?? 25).toStringAsFixed(1)}°C', const Color(0xFFEA580C)),
                             Container(width: 1, height: 36, color: const Color(0xFFCBD5E1)),
                             _buildAgroMetric(Icons.check_circle_outline_rounded, 'Soil Status', agroData['soilStatus']?.toString() ?? 'Normal', const Color(0xFF059669)),
                           ],
@@ -393,7 +393,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
                                 SizedBox(
                                   width: 80,
                                   child: Text(
-                                    _formatDate(day['date']),
+                                    _formatDate(day['date']?.toString() ?? ''),
                                     style: const TextStyle(color: Color(0xFF1E293B), fontWeight: FontWeight.bold, fontSize: 13),
                                   ),
                                 ),
@@ -425,7 +425,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
                                   const SizedBox(width: 8),
                                 ],
                                 Text(
-                                  '${(day['tempMax'] as num).round()}° / ${(day['tempMin'] as num).round()}°',
+                                  '${((day['tempMax'] as num?) ?? 30).round()}° / ${((day['tempMin'] as num?) ?? 25).round()}°',
                                   style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 13),
                                 ),
                               ],
@@ -462,10 +462,6 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
                               TileLayer(
                                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                                 userAgentPackageName: 'com.example.farm_flutter',
-                              ),
-                              TileLayer(
-                                urlTemplate: '${ApiClient.baseUrl}/weather/tile/precipitation_new/{z}/{x}/{y}',
-                                userAgentPackageName: 'com.example.farm_ai',
                               ),
                               MarkerLayer(
                                 markers: [

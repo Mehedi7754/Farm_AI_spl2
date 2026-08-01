@@ -40,47 +40,8 @@ class _TeleVetScreenState extends State<TeleVetScreen> {
   ];
 
   void _startVideoCall(String vetName) {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF0F172A),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 70,
-                height: 70,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF059669),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.videocam_rounded, color: Colors.white, size: 36),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                '$vetName এর সাথে ভিডিও কল যুক্ত হচ্ছে...',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              const Text('ক্যামেরা এবং মাইক্রোফোন চালু করা হয়েছে 🎥🎙️', style: TextStyle(color: Colors.white70, fontSize: 11)),
-              const SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: () => Navigator.pop(ctx),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFDC2626),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                icon: const Icon(Icons.call_end_rounded, color: Colors.white, size: 16),
-                label: const Text('কল কেটে দিন', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+    final roomId = 'room_televet_${DateTime.now().millisecondsSinceEpoch}';
+    context.push('/video-call/$roomId');
   }
 
   @override

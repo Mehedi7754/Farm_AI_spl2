@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/network/api_client.dart';
 
 import '../../providers/community_provider.dart';
@@ -247,8 +248,10 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                                     'title': titleCtrl.text.trim(),
                                     'content': contentCtrl.text.trim(),
                                     'category': selectedCategory,
-                                    'authorName': 'আমার খামার',
-                                    'authorLocation': 'রেজিস্টার্ড ফারমার',
+                                    'authorName': ApiClient.currentUser?['name'] ?? 'আমার খামার',
+                                    'authorLocation': ApiClient.currentUser?['role'] == 'VET'
+                                        ? 'ভেটেরিনারি সার্জন'
+                                        : (ApiClient.currentUser?['location'] ?? 'রেজিস্টার্ড ফারমার'),
                                     'isVerified': true,
                                     'likes': 0,
                                     'isLiked': false,
@@ -280,7 +283,6 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                                     } catch (_) {}
                                   });
 
-                                  if (ctx.mounted) Navigator.pop(ctx);
                                   if (mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
@@ -483,7 +485,7 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                           if (commentCtrl.text.isNotEmpty) {
                             final newComment = {
                               'id': DateTime.now().millisecondsSinceEpoch.toString(),
-                              'authorName': 'আমার খামার',
+                              'authorName': ApiClient.currentUser?['name'] ?? 'আমার খামার',
                               'content': commentCtrl.text,
                             };
                             setModalState(() {
@@ -550,6 +552,18 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         elevation: 0,
         toolbarHeight: 68,
         automaticallyImplyLeading: false,
+        leading: ApiClient.currentUser?['role'] == 'VET'
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                onPressed: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/vet-dashboard');
+                  }
+                },
+              )
+            : null,
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

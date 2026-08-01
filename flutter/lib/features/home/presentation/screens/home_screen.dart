@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +7,7 @@ import '../../../../core/l10n/strings_bn.dart';
 import '../../../utilities/presentation/providers/weather_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../animals/presentation/providers/livestock_provider.dart';
+import '../../../utilities/presentation/providers/financial_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -15,6 +17,38 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  late final PageController _pageController;
+  Timer? _autoScrollTimer;
+  int _currentCarouselIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(viewportFraction: 0.94);
+    _startAutoScroll();
+  }
+
+  void _startAutoScroll() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
+      if (_pageController.hasClients) {
+        final nextPage = (_currentCarouselIndex + 1) % 5;
+        _pageController.animateToPage(
+          nextPage,
+          duration: const Duration(milliseconds: 700),
+          curve: Curves.easeInOutCubic,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoScrollTimer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final weatherState = ref.watch(weatherProvider);
@@ -36,7 +70,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         toolbarHeight: 68,
-        titleSpacing: 20,
+        titleSpacing: 18,
         surfaceTintColor: Colors.white,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1.0),
@@ -45,18 +79,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         title: Row(
           children: [
             Container(
-              width: 42,
-              height: 42,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [Color(0xFF10B981), Color(0xFF047857)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(13),
+                borderRadius: BorderRadius.circular(14),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF059669).withValues(alpha: 0.25),
+                    color: const Color(0xFF059669).withValues(alpha: 0.28),
                     blurRadius: 10,
                     offset: const Offset(0, 3),
                   ),
@@ -108,18 +142,47 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         actions: [
           GestureDetector(
-            onTap: () {
-              context.push('/chat-list');
-            },
+            onTap: () => context.push('/notifications'),
             child: Container(
-              margin: const EdgeInsets.only(right: 10),
+              margin: const EdgeInsets.only(right: 8),
               padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(
-                color: const Color(0xFFECFDF5),
+                color: const Color(0xFFF8FAFC),
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFA7F3D0)),
+                border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
               ),
-              child: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF047857), size: 18),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(Icons.notifications_none_rounded, color: Color(0xFF334155), size: 20),
+                  Positioned(
+                    top: -1,
+                    right: -1,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => context.push('/chat-list'),
+            child: Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+              ),
+              child: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF047857), size: 20),
             ),
           ),
           GestureDetector(
@@ -128,164 +191,224 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               context.go('/login');
             },
             child: Container(
-              margin: const EdgeInsets.only(right: 20),
+              margin: const EdgeInsets.only(right: 16),
               padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+                color: const Color(0xFFFEF2F2),
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: const Color(0xFFFCA5A5), width: 1),
               ),
-              child: const Icon(Icons.logout_rounded, color: Color(0xFF64748B), size: 18),
+              child: const Icon(Icons.logout_rounded, color: Color(0xFFDC2626), size: 20),
             ),
           ),
         ],
       ),
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 30),
+        padding: const EdgeInsets.fromLTRB(0, 14, 0, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Premium Hero Voice Assistance Banner Card
-            _buildPremiumVoiceCard(context),
+            // 1. Compact & Beautiful Voice Assistance Banner Card with visible background photo
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildCompactVoiceHeroCard(context),
+            ),
             const SizedBox(height: 16),
 
-            // 2. Telemetry KPI Bar
-            _buildKpiBar(context, '${temp.round()}°C', '$animalCount টি'),
-            const SizedBox(height: 24),
-
-            // 3. Khamaar Seba Section Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: const [
-                    Icon(Icons.grid_view_rounded, color: Color(0xFF047857), size: 22),
-                    SizedBox(width: 10),
-                    Text(
-                      'খামার সেবাসমূহ',
-                      style: TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF0F172A),
-                        letterSpacing: -0.4,
-                      ),
+            // 2. Clean Section Header: Quick Metrics
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: const [
+                  Icon(Icons.insights_rounded, color: Color(0xFF047857), size: 19),
+                  SizedBox(width: 8),
+                  Text(
+                    'খামারের সার্বিক অবস্থা',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF0F172A),
+                      letterSpacing: -0.3,
                     ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text(
-                    '৮ টি সেবামূলক মডিউল',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+                ],
+              ).animate().fadeIn(duration: 350.ms),
+            ),
+
+            const SizedBox(height: 10),
+
+            // 3. Compact Auto-Scrolling Photo Carousel (High Photo Visibility)
+            _buildCompactPhotoCarousel(context, weatherData, '${temp.round()}°C', '$animalCount টি'),
+            const SizedBox(height: 22),
+
+            // 4. Services Grid Section Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: const [
+                      Icon(Icons.grid_view_rounded, color: Color(0xFF047857), size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'খামার সেবাসমূহ',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: -0.4,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ).animate().fadeIn(duration: 350.ms),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFA7F3D0)),
+                    ),
+                    child: const Text(
+                      '৮ টি সেবামূলক মডিউল',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF047857)),
+                    ),
+                  ),
+                ],
+              ).animate().fadeIn(duration: 350.ms, delay: 100.ms),
+            ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
-            // 4. Ultra-Premium Cohesive Module Cards Grid
-            _buildPremiumCohesiveServiceGrid(context),
+            // 5. Unique Signature Style Feature Cards Grid
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildUniqueSignatureServiceGrid(context),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildPremiumVoiceCard(BuildContext context) {
+  Widget _buildCompactVoiceHeroCard(BuildContext context) {
     return GestureDetector(
       onTap: () => context.push('/ai/voice'),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF047857), Color(0xFF065F46)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF047857).withValues(alpha: 0.28),
+              color: const Color(0xFF047857).withValues(alpha: 0.3),
               blurRadius: 14,
               offset: const Offset(0, 5),
             ),
           ],
         ),
-        child: Row(
+        child: Stack(
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.mic_rounded, color: Color(0xFF047857), size: 24),
-            ),
-            const SizedBox(width: 14),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'কথা বলে সেবা নিন',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.2,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'পশুর যে কোনো লক্ষণ বা সমস্যা মুখে বলুন',
-                    style: TextStyle(
-                      color: Color(0xFFA7F3D0),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+            // Visible Background Landscape Photo
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/login_landscape.png',
+                fit: BoxFit.cover,
               ),
             ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: const Color(0xFF10B981),
-                borderRadius: BorderRadius.circular(10),
+            // Semi-Transparent Gradient for Contrast
+            Positioned.fill(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xF2047857), Color(0xD9065F46)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
               ),
-              child: const Row(
+            ),
+            // Foreground Content
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
                 children: [
-                  Text(
-                    'কথা বলুন',
-                    style: TextStyle(
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
                       color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.mic_rounded, color: Color(0xFF047857), size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'কথা বলে সেবা নিন',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.3,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            SizedBox(width: 6),
+                            Icon(Icons.graphic_eq_rounded, color: Color(0xFF6EE7B7), size: 16),
+                          ],
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'পশুর লক্ষণ বা সমস্যা মুখে বলুন',
+                          style: TextStyle(
+                            color: Color(0xFFA7F3D0),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
-                  SizedBox(width: 3),
-                  Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 9),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Row(
+                      children: [
+                        Text(
+                          'কথা বলুন',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        SizedBox(width: 3),
+                        Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 9),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -295,167 +418,373 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.05, end: 0);
   }
 
-  Widget _buildKpiBar(BuildContext context, String temp, String animalCount) {
-    return Container(
-      height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0x0A0F172A),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        children: [
-          _buildKpiTile(
-            icon: Icons.wb_sunny_rounded,
-            iconColor: const Color(0xFFD97706),
-            val: temp,
-            label: 'আবহাওয়া',
-            onTap: () => context.push('/weather'),
-          ),
-          _buildKpiDivider(),
-          _buildKpiTile(
-            icon: Icons.pets_rounded,
-            iconColor: const Color(0xFF047857),
-            val: animalCount,
-            label: 'গবাদিপশু',
-            onTap: () => context.push('/animals'),
-          ),
-          _buildKpiDivider(),
-          _buildKpiTile(
-            icon: Icons.water_drop_rounded,
-            iconColor: const Color(0xFF0284C7),
-            val: '-- লি.',
-            label: 'দৈনিক দুধ',
-            onTap: () => context.push('/accounting'),
-          ),
-          _buildKpiDivider(),
-          _buildKpiTile(
-            icon: Icons.trending_up_rounded,
-            iconColor: const Color(0xFF16A34A),
-            val: '৳--',
-            label: 'মাসের লাভ',
-            onTap: () => context.push('/accounting'),
-          ),
-          _buildKpiDivider(),
-          _buildKpiTile(
-            icon: Icons.sensors_rounded,
-            iconColor: const Color(0xFF2563EB),
-            val: 'সক্রিয়',
-            label: 'স্মার্ট কলার',
-            onTap: () => context.push('/collar'),
-          ),
-        ],
-      ),
-    ).animate().fadeIn(duration: 450.ms, delay: 100.ms);
-  }
+  Widget _buildCompactPhotoCarousel(BuildContext context, Map<String, dynamic>? weatherData, String temp, String animalCount) {
+    final humidity = (weatherData?['humidity'] as num?)?.toInt() ?? 65;
+    final wind = (weatherData?['windSpeed'] as num?)?.toDouble() ?? 14.0;
+    final precip = (weatherData?['forecast'] as List?)?.isNotEmpty == true
+        ? ((weatherData!['forecast'][0]['precipitation'] as num?)?.toDouble() ?? 2.5)
+        : 2.5;
 
-  Widget _buildKpiTile({
-    required IconData icon,
-    required Color iconColor,
-    required String val,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(
-          children: [
-            Icon(icon, color: iconColor, size: 20),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(val, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF0F172A))),
-                Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
-              ],
-            ),
-          ],
+    final rawLocName = ref.watch(weatherProvider).locationName;
+    final locName = rawLocName.isNotEmpty ? rawLocName : 'ঢাকা, বাংলাদেশ';
+
+    // 1. Calculate Real Cattle stats
+    final livestockState = ref.watch(livestockProvider);
+    final animalsList = livestockState.value ?? [];
+    int healthyCount = 0;
+    int boundCollars = 0;
+    for (var cow in animalsList) {
+      final health = (cow['health'] ?? 'সুস্থ').toString().toLowerCase();
+      if (health.contains('সুস্থ') || health.contains('চমৎকার') || health.contains('healthy') || health.contains('excellent')) {
+        healthyCount++;
+      }
+      final isBound = cow['isBound'] == true;
+      final collarId = cow['collarId']?.toString();
+      if (isBound || (collarId != null && collarId.isNotEmpty && collarId != 'N/A')) {
+        boundCollars++;
+      }
+    }
+    final int animalCountNum = animalsList.length;
+    final double healthPercentage = animalCountNum > 0 ? (healthyCount / animalCountNum) * 100 : 100.0;
+
+    // 2. Calculate Real Financial metrics
+    final financialState = ref.watch(financialProvider);
+    final transactions = financialState.value ?? [];
+
+    double totalMilkLiters = 0;
+    int currentMonthIncome = 0;
+    int currentMonthExpense = 0;
+    final now = DateTime.now();
+
+    for (var t in transactions) {
+      // Liters extraction
+      if (t['isIncome'] == true && t['category'] == 'দুধ বিক্রি') {
+        final title = t['title'].toString();
+        final regExp = RegExp(r'(\d+)\s*(?:লিটার|লিলি|l|L|liter|litre)');
+        final match = regExp.firstMatch(title);
+        if (match != null) {
+          totalMilkLiters += double.tryParse(match.group(1)!) ?? 0;
+        } else {
+          final amount = (t['amount'] as num?)?.toDouble() ?? 0.0;
+          totalMilkLiters += (amount / 75.0); // Estimate: 75 Taka per liter
+        }
+      }
+
+      // Profit calculations for current month
+      final tsRaw = t['timestamp'];
+      final ts = tsRaw is DateTime ? tsRaw : (tsRaw != null ? DateTime.tryParse(tsRaw.toString()) : null);
+      if (ts != null && ts.year == now.year && ts.month == now.month) {
+        final amount = (t['amount'] as num).toInt();
+        if (t['isIncome'] == true) {
+          currentMonthIncome += amount;
+        } else {
+          currentMonthExpense += amount;
+        }
+      }
+    }
+    final monthlyProfit = currentMonthIncome - currentMonthExpense;
+
+    final cards = [
+      {
+        'title': 'আজকের আবহাওয়া পূর্বাভাস',
+        'val': temp,
+        'sub': '$locName • আর্দ্রতা: $humidity% | বাতাস: ${wind.round()}km/h',
+        'icon': Icons.wb_sunny_rounded,
+        'gradient': [const Color(0xFF047857), const Color(0xFF0F766E)],
+        'accentIcon': Icons.cloud_queue_rounded,
+        'btnText': 'বিস্তারিত',
+        'route': '/weather',
+        'extraMetrics': [
+          {'icon': Icons.water_drop_rounded, 'label': '$humidity%'},
+          {'icon': Icons.air_rounded, 'label': '${wind.round()}km/h'},
+          {'icon': Icons.umbrella_rounded, 'label': '${precip.toStringAsFixed(1)}mm'},
+        ],
+      },
+      {
+        'title': 'গবাদিপশু খামার ট্র্যাকিং',
+        'val': '$animalCountNum টি পশু নিবন্ধিত',
+        'sub': 'শতকরা ${healthPercentage.toStringAsFixed(0)}% পশুর স্বাস্থ্য চমৎকার ও সুস্থ',
+        'icon': Icons.pets_rounded,
+        'accentIcon': Icons.agriculture_rounded,
+        'gradient': [const Color(0xFF0284C7), const Color(0xFF0369A1)],
+        'btnText': 'তালিকা',
+        'route': '/animals',
+      },
+
+      {
+        'title': 'চলতি মাসের খামার লাভ',
+        'val': '৳$monthlyProfit নিট লাভ',
+        'sub': 'আয়: ৳$currentMonthIncome | ব্যয়: ৳$currentMonthExpense',
+        'icon': Icons.trending_up_rounded,
+        'accentIcon': Icons.monetization_on_rounded,
+        'gradient': [const Color(0xFF6D28D9), const Color(0xFF5B21B6)],
+        'btnText': 'বিবরণী',
+        'route': '/accounting',
+      },
+      {
+        'title': 'স্মার্ট কলার সেন্সর',
+        'val': boundCollars > 0 ? '$boundCollars টি কলার সক্রিয়' : 'কোনো কলার সক্রিয় নেই',
+        'sub': boundCollars > 0 ? 'রিয়েল-টাইম জিপিএস ও মোশন ট্র্যাকিং সক্রিয়' : 'কলার আইডি সংযুক্ত করতে ট্র্যাকিং যান',
+        'icon': Icons.sensors_rounded,
+        'accentIcon': Icons.cell_tower_rounded,
+        'gradient': [const Color(0xFFBE185D), const Color(0xFF9D174D)],
+        'btnText': 'ট্র্যাকিং',
+        'route': '/collar',
+      },
+    ];
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 112, // Compact, sleek height
+          child: PageView.builder(
+            controller: _pageController,
+            onPageChanged: (index) {
+              setState(() {
+                _currentCarouselIndex = index;
+              });
+            },
+            itemCount: cards.length,
+            itemBuilder: (context, index) {
+              final item = cards[index];
+              final gradientColors = item['gradient'] as List<Color>;
+
+              return GestureDetector(
+                onTap: () => context.push(item['route'] as String),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: gradientColors[0].withValues(alpha: 0.32),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    children: [
+                      // Highly Visible Background Photo
+                      Positioned.fill(
+                        child: Image.asset(
+                          'assets/images/login_landscape.png',
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+
+                      // Lightened Gradient Overlay for High Photo Visibility
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                gradientColors[0].withOpacity(0.78),
+                                gradientColors[1].withOpacity(0.70),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Graphic Accent Icon
+                      Positioned(
+                        right: -10,
+                        bottom: -15,
+                        child: Icon(
+                          item['accentIcon'] as IconData,
+                          size: 95,
+                          color: Colors.white.withOpacity(0.16),
+                        ),
+                      ),
+
+                      // Foreground Content
+                      Padding(
+                        padding: const EdgeInsets.all(13),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(5),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.25),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Icon(item['icon'] as IconData, color: Colors.white, size: 16),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        item['title'] as String,
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.98),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    item['val'] as String,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -0.3,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    item['sub'] as String,
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.9),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.28),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.white.withOpacity(0.45)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    item['btnText'] as String,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 3),
+                                  const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 8),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
         ),
-      ),
+        const SizedBox(height: 10),
+
+        // Carousel Page Indicators (Dots)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(cards.length, (index) {
+            final isSel = index == _currentCarouselIndex;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              height: 5,
+              width: isSel ? 18 : 5,
+              decoration: BoxDecoration(
+                color: isSel ? const Color(0xFF047857) : const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            );
+          }),
+        ),
+      ],
     );
   }
 
-  Widget _buildKpiDivider() {
-    return Container(margin: const EdgeInsets.symmetric(vertical: 8), width: 1, color: const Color(0xFFF1F5F9));
-  }
-
-  Widget _buildPremiumCohesiveServiceGrid(BuildContext context) {
+  Widget _buildUniqueSignatureServiceGrid(BuildContext context) {
     final list = [
       {
         'title': StringsBn.aiSymptom,
-        'sub': 'লক্ষণ ও রোগ বিশ্লেষণ',
-        'icon': Icons.biotech_rounded,
+        'sub': 'লক্ষণ ও ছবি দিয়ে রোগ পরীক্ষা',
+        'icon': Icons.psychology_rounded,
         'accentColor': const Color(0xFF047857),
-        'badgeBg': const Color(0xFFECFDF5),
+        'bgTint': const Color(0xFFF0FDF4),
+        'borderTint': const Color(0xFFA7F3D0),
         'route': '/ai/symptom',
       },
       {
         'title': StringsBn.cattleManagement,
         'sub': 'পশুর তালিকা ও স্বাস্থ্য',
         'icon': Icons.pets_rounded,
-        'accentColor': const Color(0xFF2563EB),
-        'badgeBg': const Color(0xFFEFF6FF),
+        'accentColor': const Color(0xFF1D4ED8),
+        'bgTint': const Color(0xFFEFF6FF),
+        'borderTint': const Color(0xFFBFDBFE),
         'route': '/animals',
       },
       {
         'title': StringsBn.hospitalFinder,
         'sub': 'নিকটস্থ হাসপাতাল ম্যাপ',
         'icon': Icons.local_hospital_rounded,
-        'accentColor': const Color(0xFFDC2626),
-        'badgeBg': const Color(0xFFFEF2F2),
+        'accentColor': const Color(0xFFB91C1C),
+        'bgTint': const Color(0xFFFEF2F2),
+        'borderTint': const Color(0xFFFECACA),
         'route': '/hospital',
       },
       {
         'title': StringsBn.vaccineReminder,
         'sub': 'টিকা ও কৃমিনাশক নোটিশ',
         'icon': Icons.vaccines_rounded,
-        'accentColor': const Color(0xFF9333EA),
-        'badgeBg': const Color(0xFFFAF5FF),
+        'accentColor': const Color(0xFF7E22CE),
+        'bgTint': const Color(0xFFFAF5FF),
+        'borderTint': const Color(0xFFE9D5FF),
         'route': '/reminders',
       },
       {
         'title': StringsBn.accounting,
         'sub': 'দুধ বিক্রি ও আয়-ব্যয়',
         'icon': Icons.payments_rounded,
-        'accentColor': const Color(0xFFD97706),
-        'badgeBg': const Color(0xFFFEFCE8),
+        'accentColor': const Color(0xFFB45309),
+        'bgTint': const Color(0xFFFEFCE8),
+        'borderTint': const Color(0xFFFDE68A),
         'route': '/accounting',
       },
       {
         'title': StringsBn.weather,
         'sub': 'বৃষ্টি ও আবহাওয়া পূর্বাভাস',
         'icon': Icons.cloud_sync_rounded,
-        'accentColor': const Color(0xFF0284C7),
-        'badgeBg': const Color(0xFFF0F9FF),
+        'accentColor': const Color(0xFF0369A1),
+        'bgTint': const Color(0xFFF0F9FF),
+        'borderTint': const Color(0xFFBAE6FD),
         'route': '/weather',
       },
       {
         'title': StringsBn.teleVet,
         'sub': 'ডাক্তারের সাথে ভিডিও কল',
         'icon': Icons.video_call_rounded,
-        'accentColor': const Color(0xFFDB2777),
-        'badgeBg': const Color(0xFFFDF2F8),
+        'accentColor': const Color(0xFFBE185D),
+        'bgTint': const Color(0xFFFDF2F8),
+        'borderTint': const Color(0xFFFBCFE8),
         'route': '/find-vet',
       },
       {
         'title': StringsBn.medicine,
         'sub': 'ওষুধের বিবরণ ও মাত্রা',
         'icon': Icons.medication_rounded,
-        'accentColor': const Color(0xFFEA580C),
-        'badgeBg': const Color(0xFFFFF7ED),
+        'accentColor': const Color(0xFFC2410C),
+        'bgTint': const Color(0xFFFFF7ED),
+        'borderTint': const Color(0xFFFFEDD5),
         'route': '/medicine',
       },
     ];
@@ -466,79 +795,147 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       itemCount: list.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: 14,
-        mainAxisSpacing: 14,
-        childAspectRatio: 1.10,
+        crossAxisSpacing: 13,
+        mainAxisSpacing: 13,
+        childAspectRatio: 1.06,
       ),
       itemBuilder: (context, idx) {
         final item = list[idx];
         final accentColor = item['accentColor'] as Color;
-        final badgeBg = item['badgeBg'] as Color;
+        final bgTint = item['bgTint'] as Color;
+        final borderTint = item['borderTint'] as Color;
 
         return GestureDetector(
           onTap: () => context.push(item['route'] as String),
           child: Container(
-            padding: const EdgeInsets.all(16),
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+              color: bgTint,
+              // Skewed Asymmetric Curved Geometry
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(24),
+                bottomRight: Radius.circular(24),
+                topRight: Radius.circular(8),
+                bottomLeft: Radius.circular(8),
+              ),
+              border: Border.all(color: borderTint, width: 1.3),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0x080F172A),
-                  blurRadius: 14,
+                  color: accentColor.withOpacity(0.06),
+                  blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
               ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Stack(
               children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: badgeBg,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(
-                    item['icon'] as IconData,
-                    color: accentColor,
-                    size: 25,
+                // Skewed Angled Background Ribbon Stripe Accent
+                Positioned(
+                  top: -12,
+                  right: -18,
+                  child: Transform.rotate(
+                    angle: -0.15,
+                    child: Container(
+                      width: 75,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: accentColor.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
                   ),
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item['title'] as String,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF0F172A),
-                        letterSpacing: -0.3,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+
+                // Top-Right Action Arrow Micro Badge
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: borderTint),
+                      boxShadow: [
+                        BoxShadow(
+                          color: accentColor.withOpacity(0.1),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      item['sub'] as String,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF64748B),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    child: Icon(
+                      Icons.arrow_outward_rounded,
+                      size: 14,
+                      color: accentColor,
                     ),
-                  ],
+                  ),
+                ),
+
+                // Card Main Content Layout
+                Padding(
+                  padding: const EdgeInsets.all(13),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Icon Badge with White Embossed Background & Mild Border Tint
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: borderTint, width: 1.2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: accentColor.withOpacity(0.1),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          item['icon'] as IconData,
+                          color: accentColor,
+                          size: 24,
+                        ),
+                      ),
+
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item['title'] as String,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF1E293B),
+                              letterSpacing: -0.3,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            item['sub'] as String,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF64748B),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-        ).animate().fadeIn(duration: 400.ms, delay: (idx * 40).ms).slideY(begin: 0.08, end: 0, curve: Curves.easeOutCubic);
+        ).animate().fadeIn(duration: 350.ms, delay: (idx * 30).ms);
       },
     );
   }

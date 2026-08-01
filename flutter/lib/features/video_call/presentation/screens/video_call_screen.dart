@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import '../../../../core/network/api_client.dart';
 
@@ -57,6 +58,16 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
 
   Future<void> _getUserMedia() async {
     try {
+      final statusCam = await Permission.camera.request();
+      final statusMic = await Permission.microphone.request();
+
+      if (statusCam.isDenied || statusMic.isDenied) {
+        if (mounted) {
+          setState(() => _status = 'ক্যামেরা এবং মাইক্রোফোনের অনুমতি প্রয়োজন');
+        }
+        return;
+      }
+
       _localStream = await navigator.mediaDevices.getUserMedia({
         'audio': true,
         'video': {'facingMode': 'user', 'width': 640, 'height': 480},
@@ -64,7 +75,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       _localRenderer.srcObject = _localStream;
       if (mounted) setState(() {});
     } catch (e) {
-      if (mounted) setState(() => _status = 'ক্যামেরা অ্যাক্সেস ব্যর্থ হয়েছে');
+      if (mounted) setState(() => _status = 'ক্যামেরা অ্যাক্সেস ব্যর্থ হয়েছে: $e');
     }
   }
 

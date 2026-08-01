@@ -11,6 +11,7 @@ import '../../features/ai_tools/presentation/screens/symptom_analysis_screen.dar
 import '../../features/ai_tools/presentation/screens/ai_result_screen.dart';
 import '../../features/animals/presentation/screens/animal_detail_screen.dart';
 import '../../features/animals/presentation/screens/smart_collar_screen.dart';
+import '../../features/animals/presentation/screens/add_cattle_screen.dart';
 import '../../features/ai_tools/presentation/screens/voice_chat_screen.dart';
 import '../../features/utilities/presentation/screens/hospital_finder_screen.dart';
 import '../../features/utilities/presentation/screens/tele_vet_screen.dart';
@@ -71,11 +72,11 @@ final router = GoRouter(
               routes: [
                 GoRoute(
                   path: 'detail',
-                  builder: (context, state) => const AnimalDetailScreen(),
+                  builder: (context, state) => AnimalDetailScreen(animalData: state.extra as Map<String, dynamic>?),
                 ),
                 GoRoute(
                   path: 'collar',
-                  builder: (context, state) => const SmartCollarScreen(),
+                  builder: (context, state) => SmartCollarScreen(deviceCode: (state.extra as String?) ?? 'DEV-124'),
                 ),
               ],
             ),
@@ -247,6 +248,11 @@ final router = GoRouter(
       path: '/chat-list',
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const ChatListScreen(),
+    ),
+    GoRoute(
+      path: '/animals/add',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const AddCattleScreen(),
     ),
   ],
 );

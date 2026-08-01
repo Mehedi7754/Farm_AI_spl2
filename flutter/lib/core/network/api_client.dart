@@ -251,20 +251,27 @@ class ApiClient {
   }
 
   static Future<List<Map<String, dynamic>>> getMedicineInfo(String query, {String? disease, String? symptoms, String? species}) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/ai-tools/medicine-info'),
-      headers: _headers,
-      body: jsonEncode({
-        'query': query,
-        if (disease != null) 'disease': disease,
-        if (symptoms != null) 'symptoms': symptoms,
-        if (species != null) 'species': species,
-      }),
-    ).timeout(const Duration(seconds: 20));
+    for (int attempt = 1; attempt <= 2; attempt++) {
+      try {
+        final response = await http.post(
+          Uri.parse('$baseUrl/ai-tools/medicine-info'),
+          headers: _headers,
+          body: jsonEncode({
+            'query': query,
+            if (disease != null) 'disease': disease,
+            if (symptoms != null) 'symptoms': symptoms,
+            if (species != null) 'species': species,
+          }),
+        ).timeout(const Duration(seconds: 15));
 
-    final Map<String, dynamic> data = _processResponse(response);
-    if (data.containsKey('medicines') && data['medicines'] is List) {
-      return (data['medicines'] as List).map((e) => e as Map<String, dynamic>).toList();
+        final data = _processResponse(response);
+        if (data != null && data is Map && data.containsKey('medicines') && data['medicines'] is List) {
+          final list = (data['medicines'] as List).map((e) => e as Map<String, dynamic>).toList();
+          if (list.isNotEmpty) return list;
+        }
+      } catch (e) {
+        debugPrint('getMedicineInfo attempt $attempt error: $e');
+      }
     }
     return [];
   }
@@ -299,6 +306,68 @@ class ApiClient {
     ).timeout(const Duration(seconds: 8));
 
     return _processResponse(response);
+  }
+
+  static Future<List<dynamic>> getFinancialRecords() async {
+    final farmerId = _currentUser?['id'];
+    final url = farmerId != null
+        ? '$baseUrl/financial-records?farmerId=$farmerId'
+        : '$baseUrl/financial-records';
+    try {
+      final response = await http.get(
+        Uri.parse(url),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 8));
+      final data = _processResponse(response);
+      if (data is List) return data;
+      if (data is Map && data['records'] is List) return data['records'] as List;
+      return [];
+    } catch (e) {
+      debugPrint('getFinancialRecords error: $e');
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>?> createFinancialRecord({
+    required String title,
+    required int amount,
+    required bool isIncome,
+    required String category,
+  }) async {
+    final farmerId = _currentUser?['id'] ?? '0a06e6e5-3b08-4c43-8ce3-197b50ecd281';
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/financial-records'),
+        headers: _headers,
+        body: jsonEncode({
+          'farmerId': farmerId,
+          'type': isIncome ? 'INCOME' : 'EXPENSE',
+          'amount': amount,
+          'category': category,
+          'description': title,
+        }),
+      ).timeout(const Duration(seconds: 8));
+      return _processResponse(response);
+    } catch (e) {
+      debugPrint('createFinancialRecord error: $e');
+      return null;
+    }
+  }
+
+  static Future<bool> deleteFinancialRecord(String id) async {
+    if (id.startsWith('tx-')) {
+      return true; // Local-only temporary ID, safe to delete locally
+    }
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/financial-records/$id'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 8));
+      return (response.statusCode >= 200 && response.statusCode < 300) || response.statusCode == 404;
+    } catch (e) {
+      debugPrint('deleteFinancialRecord error: $e');
+      return true; // Proceed with local removal even if network error occurs
+    }
   }
 
   // --- Community ---
@@ -413,6 +482,63 @@ class ApiClient {
 
     _processResponse(response);
     return true;
+  }
+
+  static Future<Map<String, dynamic>?> getDeviceLocation(String deviceCode) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/smart-collars/device/$deviceCode'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic>) {
+          // Cross-reference the general collars list due to a backend detail endpoint bug
+          bool listOnlineStatus = false;
+          try {
+            final listResponse = await http.get(
+              Uri.parse('$baseUrl/smart-collars'),
+              headers: _headers,
+            ).timeout(const Duration(seconds: 5));
+            if (listResponse.statusCode == 200) {
+              final List<dynamic> listData = jsonDecode(listResponse.body);
+              final matched = listData.firstWhere(
+                (c) => c['deviceCode'].toString() == deviceCode,
+                orElse: () => null,
+              );
+              if (matched != null) {
+                listOnlineStatus = matched['isOnline'] == true;
+              }
+            }
+          } catch (e) {
+            debugPrint('Error cross-referencing collars list: $e');
+          }
+
+          return {
+            'id': data['id'],
+            'deviceCode': data['deviceCode'],
+            'latitude': (data['lastLatitude'] as num?)?.toDouble() ?? 0.0,
+            'longitude': (data['lastLongitude'] as num?)?.toDouble() ?? 0.0,
+            'batteryLevel': data['batteryLevel'] ?? 100,
+            'isOnline': (data['isOnline'] == true) || listOnlineStatus,
+          };
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching device location for $deviceCode: $e');
+    }
+    return null;
+  }
+
+  static Future<Map<String, dynamic>> updateCollar(String id, Map<String, dynamic> data) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/smart-collars/$id'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 10));
+
+    return _processResponse(response);
   }
 
   // --- Livestock ---

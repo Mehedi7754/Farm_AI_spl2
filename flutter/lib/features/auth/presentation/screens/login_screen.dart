@@ -38,7 +38,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('লগইন সফল হয়েছে!'),
-            backgroundColor: Color(0xFF2E7D32),
+            backgroundColor: Color(0xFF047857),
           ),
         );
         
@@ -68,46 +68,68 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 24),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 32),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.95),
+                      color: Colors.white.withOpacity(0.96),
                       borderRadius: BorderRadius.circular(32),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.15),
-                          blurRadius: 30,
-                          offset: const Offset(0, 15),
+                          color: Colors.black.withOpacity(0.22),
+                          blurRadius: 36,
+                          offset: const Offset(0, 16),
                         ),
                       ],
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Image.asset('assets/images/logo.png', height: 75),
-                        const SizedBox(height: 16),
-                        Text(
+                        // App Brand Logo Container
+                        Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF10B981), Color(0xFF047857)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF059669).withOpacity(0.35),
+                                blurRadius: 16,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.eco_rounded, color: Colors.white, size: 36),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        const Text(
                           StringsBn.appName,
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF2E7D32),
+                          style: TextStyle(
+                            fontSize: 30,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF0F172A),
                             letterSpacing: -0.5,
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 4),
                         Text(
                           StringsBn.loginTitle,
                           textAlign: TextAlign.center,
                           style: const TextStyle(
-                            color: Color(0xFF7F8C8D),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF64748B),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -135,32 +157,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           ),
 
-                        // Role Selector Tab
+                        // Role Selector Switcher
                         Container(
-                          margin: const EdgeInsets.only(bottom: 16),
+                          margin: const EdgeInsets.only(bottom: 20),
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
                             color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(16),
                           ),
                           child: Row(
                             children: [
                               Expanded(
                                 child: GestureDetector(
                                   onTap: () => setState(() => _selectedRole = 'FARMER'),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    padding: const EdgeInsets.symmetric(vertical: 11),
                                     decoration: BoxDecoration(
-                                      color: _selectedRole == 'FARMER' ? const Color(0xFF2E7D32) : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(10),
+                                      color: _selectedRole == 'FARMER' ? const Color(0xFF047857) : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Row(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        Icon(Icons.agriculture_rounded, size: 16, color: _selectedRole == 'FARMER' ? Colors.white : const Color(0xFF64748B)),
+                                        Icon(Icons.agriculture_rounded, size: 18, color: _selectedRole == 'FARMER' ? Colors.white : const Color(0xFF64748B)),
                                         const SizedBox(width: 6),
                                         Text(
-                                          'কৃষক লগইন',
+                                          'কৃষক অ্যাকাউন্ট',
                                           style: TextStyle(
                                             fontSize: 13,
                                             fontWeight: FontWeight.bold,
@@ -175,16 +198,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               Expanded(
                                 child: GestureDetector(
                                   onTap: () => setState(() => _selectedRole = 'VET'),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    padding: const EdgeInsets.symmetric(vertical: 11),
                                     decoration: BoxDecoration(
-                                      color: _selectedRole == 'VET' ? const Color(0xFF1565C0) : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(10),
+                                      color: _selectedRole == 'VET' ? const Color(0xFF2563EB) : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Row(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        Icon(Icons.local_hospital_rounded, size: 16, color: _selectedRole == 'VET' ? Colors.white : const Color(0xFF64748B)),
+                                        Icon(Icons.local_hospital_rounded, size: 18, color: _selectedRole == 'VET' ? Colors.white : const Color(0xFF64748B)),
                                         const SizedBox(width: 6),
                                         Text(
                                           'পশু চিকিৎসক',
@@ -210,6 +234,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           icon: Icons.email_outlined,
                         ),
                         const SizedBox(height: 16),
+
                         // Password Field
                         _buildTextField(
                           controller: _passwordController,
@@ -217,43 +242,63 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           icon: Icons.lock_outline_rounded,
                           isPassword: true,
                         ),
-                        const SizedBox(height: 28),
+                        const SizedBox(height: 26),
 
-                        // Login Button with JWT auth
-                        ElevatedButton(
-                          onPressed: authState.isLoading ? null : _handleLogin,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2E7D32),
-                            minimumSize: const Size(double.infinity, 56),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            elevation: 0,
-                          ),
-                          child: authState.isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                )
-                              : const Text(
-                                  StringsBn.loginButton,
-                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                        // High-Impact Gradient Login Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 54,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF10B981), Color(0xFF047857)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF059669).withOpacity(0.35),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
                                 ),
+                              ],
+                            ),
+                            child: ElevatedButton(
+                              onPressed: authState.isLoading ? null : _handleLogin,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                shadowColor: Colors.transparent,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              ),
+                              child: authState.isLoading
+                                  ? const SizedBox(
+                                      height: 22,
+                                      width: 22,
+                                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                                    )
+                                  : const Text(
+                                      StringsBn.loginButton,
+                                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16),
+                                    ),
+                            ),
+                          ),
                         ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
 
-                        // Registration Link
+                        // Registration Footer Link
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const Text(
                               StringsBn.noAccount,
-                              style: TextStyle(color: Color(0xFF7F8C8D)),
+                              style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
                             ),
-                            TextButton(
-                              onPressed: () => context.go('/register'),
+                            GestureDetector(
+                              onTap: () => context.go('/register'),
                               child: const Text(
                                 StringsBn.registerNow,
-                                style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+                                style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF047857), fontSize: 13),
                               ),
                             ),
                           ],
@@ -279,23 +324,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return TextFormField(
       controller: controller,
       obscureText: isPassword,
+      style: const TextStyle(fontSize: 14, color: Color(0xFF0F172A), fontWeight: FontWeight.w600),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Color(0xFF7F8C8D), fontSize: 14),
-        prefixIcon: Icon(icon, color: const Color(0xFF2E7D32), size: 22),
+        labelStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+        prefixIcon: Icon(icon, color: const Color(0xFF047857), size: 20),
         filled: true,
-        fillColor: const Color(0xFFF8F9FA),
+        fillColor: const Color(0xFFF8FAFC),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFFE0E6ED), width: 1),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 1.5),
+          borderSide: const BorderSide(color: Color(0xFF047857), width: 1.8),
         ),
       ),
     );

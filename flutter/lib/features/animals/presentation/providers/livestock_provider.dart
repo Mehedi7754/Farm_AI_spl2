@@ -19,12 +19,57 @@ class LivestockNotifier extends AsyncNotifier<List<dynamic>> {
       return localSavedList;
     }
 
+    // Auto-sync local offline-created cows to backend
+    final List<dynamic> syncedLocalList = List.from(localSavedList);
+    bool needSave = false;
+
+    for (int i = 0; i < syncedLocalList.length; i++) {
+      try {
+        final item = Map<String, dynamic>.from(syncedLocalList[i]);
+        final id = item['id'].toString();
+        if (id.startsWith('cattle-')) {
+          final collarDeviceCode = item['collarId'];
+          final Map<String, dynamic> postData = Map.from(item)
+            ..remove('id')
+            ..remove('collarId')
+            ..remove('smartCollar')
+            ..remove('isBound');
+
+          final created = await ApiClient.createLivestock({
+            ...postData,
+            'farmerId': farmerId,
+          });
+
+          if (created['id'] != null) {
+            item['id'] = created['id'];
+            needSave = true;
+
+            if (collarDeviceCode != null) {
+              final collarInfo = await ApiClient.getDeviceLocation(collarDeviceCode);
+              if (collarInfo != null && collarInfo['id'] != null) {
+                await ApiClient.updateCollar(collarInfo['id'], {
+                  'livestockId': created['id'],
+                });
+              }
+            }
+          }
+          syncedLocalList[i] = item;
+        }
+      } catch (e) {
+        debugPrint('Error syncing local cow: $e');
+      }
+    }
+
+    if (needSave) {
+      await _saveLocalLivestock(syncedLocalList);
+    }
+
     try {
       final remoteData = await ApiClient.getLivestock(farmerId);
       final mergedMap = <String, dynamic>{};
 
       // Put local saved list first
-      for (var item in localSavedList) {
+      for (var item in syncedLocalList) {
         final key = (item['id'] ?? item['name']).toString();
         mergedMap[key] = item;
       }
@@ -40,7 +85,7 @@ class LivestockNotifier extends AsyncNotifier<List<dynamic>> {
       return mergedList;
     } catch (e) {
       debugPrint('Remote livestock fetch error: $e. Returning persisted local list.');
-      return localSavedList;
+      return syncedLocalList;
     }
   }
 
@@ -76,22 +121,44 @@ class LivestockNotifier extends AsyncNotifier<List<dynamic>> {
     final user = ref.read(authProvider).user;
     final farmerId = user?['id'] ?? 'farmer-local-1';
 
+    final collarDeviceCode = newAnimalData['collarId'];
+    final Map<String, dynamic> postData = Map.from(newAnimalData)..remove('collarId');
+
     final newItem = {
       'id': 'cattle-${DateTime.now().millisecondsSinceEpoch}',
-      ...newAnimalData,
+      ...postData,
       'farmerId': farmerId,
       'createdAt': DateTime.now().toIso8601String(),
     };
 
     final currentList = state.value ?? [];
-    final updatedList = [newItem, ...currentList];
+    final updatedList = [
+      {
+        ...newItem,
+        if (collarDeviceCode != null) 'smartCollar': {'deviceCode': collarDeviceCode, 'isOnline': true, 'lastLatitude': 0.0, 'lastLongitude': 0.0}
+      },
+      ...currentList
+    ];
 
-    // Optimistically update memory and disk immediately!
     state = AsyncValue.data(updatedList);
     await _saveLocalLivestock(updatedList);
 
     try {
-      await ApiClient.createLivestock(newItem);
+      final created = await ApiClient.createLivestock({
+        ...postData,
+        'farmerId': farmerId,
+      });
+
+      if (collarDeviceCode != null && created['id'] != null) {
+        final collarInfo = await ApiClient.getDeviceLocation(collarDeviceCode);
+        if (collarInfo != null && collarInfo['id'] != null) {
+          await ApiClient.updateCollar(collarInfo['id'], {
+            'livestockId': created['id'],
+          });
+        }
+      }
+
+      await refresh();
     } catch (e) {
       debugPrint('Backend sync error for cattle creation: $e. Kept safely in local database.');
     }
