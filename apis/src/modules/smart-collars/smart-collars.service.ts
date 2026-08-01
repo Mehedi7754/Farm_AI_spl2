@@ -59,6 +59,15 @@ export class SmartCollarsService {
     return collar;
   }
 
+  async update(id: string, dto: any) {
+    await this.findOne(id);
+    return this.prisma.smartCollar.update({
+      where: { id },
+      data: dto,
+      include: { livestock: true },
+    });
+  }
+
   async updateTelemetry(id: string, dto: UpdateTelemetryDto) {
     await this.findOne(id);
     return this.prisma.smartCollar.update({

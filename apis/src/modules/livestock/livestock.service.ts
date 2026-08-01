@@ -14,15 +14,17 @@ export class LivestockService {
     });
   }
 
-  async findAll(farmerId?: string): Promise<Livestock[]> {
+  async findAll(farmerId?: string): Promise<any[]> {
     return this.prisma.livestock.findMany({
       where: farmerId ? { farmerId } : undefined,
+      include: { smartCollar: true },
     });
   }
 
-  async findOne(id: string): Promise<Livestock> {
+  async findOne(id: string): Promise<any> {
     const livestock = await this.prisma.livestock.findUnique({
       where: { id },
+      include: { smartCollar: true },
     });
 
     if (!livestock) {

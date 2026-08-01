@@ -48,6 +48,11 @@ export class SmartCollarsController {
     return this.smartCollarsService.findByDeviceCode(deviceCode);
   }
 
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: any) {
+    return this.smartCollarsService.update(id, dto);
+  }
+
   @Patch(':id/telemetry')
   updateTelemetry(@Param('id') id: string, @Body() dto: UpdateTelemetryDto) {
     return this.smartCollarsService.updateTelemetry(id, dto);
