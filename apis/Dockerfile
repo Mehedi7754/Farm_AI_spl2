@@ -23,4 +23,4 @@ COPY --from=builder /app/public ./public
 
 EXPOSE 3000 3001
 
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]
