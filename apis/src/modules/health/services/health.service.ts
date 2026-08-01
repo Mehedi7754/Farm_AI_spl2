@@ -105,7 +105,8 @@ Do NOT output intro, outro, or markdown markers. Output ONLY the bullet points i
               const resData: any = await res.json();
               const text = resData.choices?.[0]?.message?.content || '';
               if (text) {
-                const parsed = text.split('\n')
+                const cleanedText = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+                const parsed = cleanedText.split('\n')
                   .map(line => line.trim().replace(/^[-*•\d\.\)\s]+/, ''))
                   .filter(line => line.length > 3);
                 if (parsed.length > 0) {
