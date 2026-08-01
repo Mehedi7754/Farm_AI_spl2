@@ -43,7 +43,7 @@ export class HealthService {
                   'Authorization': `Bearer ${groqApiKeys[0]}`,
                 },
                 body: JSON.stringify({
-                  model: 'qwen/qwen3.6-27b',
+                  model: 'llama-3.2-11b-vision-preview',
                   messages: [
                     {
                       role: 'user',
