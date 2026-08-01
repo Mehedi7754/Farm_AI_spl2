@@ -141,6 +141,7 @@ Do NOT output intro, outro, or markdown markers. Output ONLY the bullet points i
                 email: `farmer_${Date.now()}@farm.ai`,
                 password: 'password123',
                 role: 'FARMER',
+                phoneNumber: `+88017${Math.floor(10000000 + Math.random() * 90000000)}`,
               }
             });
           }
@@ -151,6 +152,7 @@ Do NOT output intro, outro, or markdown markers. Output ONLY the bullet points i
               breed: 'Local',
               gender: 'MALE',
               weight: 300,
+              dateOfBirth: new Date(),
             }
           });
           finalLivestockId = newLivestock.id;
