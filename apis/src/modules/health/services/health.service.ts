@@ -27,67 +27,66 @@ export class HealthService {
 
     try {
       if (imageBuffer) {
-        // 1. Prompt Engineering Vision Guardrail check via Groq Vision
-        if (groqApiKeys.length > 0) {
-          try {
-            const b64 = imageBuffer.toString('base64');
-            const vRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${groqApiKeys[0]}`,
-              },
-              body: JSON.stringify({
-                model: 'qwen/qwen3.6-27b',
-                messages: [
-                  {
-                    role: 'user',
-                    content: [
-                      { type: 'text', text: 'Is this image showing a cow/cattle/bull/ox/calf? Reply ONLY YES_COW or NOT_COW.' },
-                      { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}` } }
-                    ]
-                  }
-                ],
-                max_completion_tokens: 30,
-              }),
-            });
-            if (vRes.ok) {
-              const vData: any = await vRes.json();
-              const vText = vData.choices?.[0]?.message?.content || '';
-              if (vText.includes('NOT_COW')) {
-                return {
-                  assessmentId: 'none',
-                  livestockId,
-                  diagnosis: 'পশু সনাক্ত হয়নি (Non-cattle image)',
-                  riskLevel: RiskLevel.NORMAL,
-                  recommendations: [
-                    'আপলোডকৃত ছবিতে কোন গরু বা পশু পাওয়া যায়নি।',
-                    'অনুগ্রহ করে আপনার পশুর একটি স্পষ্ট ছবি আপলোড করুন।',
-                    'লক্ষণযুক্ত স্থানের স্পষ্ট ছবি ব্যবহার করুন।'
-                  ],
-                  analysis: 'ছবিটি গরুর ছবি নয় অথবা অত্যন্ত অস্পষ্ট।',
-                  assessedAt: new Date().toISOString(),
-                };
-              }
-            }
-          } catch (vErr) {
-            console.warn('Vision prompt guardrail check skipped:', vErr.message);
-          }
-        }
-
-        // 2. Direct call to Prediction Model API via DISEASE_MODEL_URL
+        const b64 = imageBuffer.toString('base64');
         const formData = new FormData();
         const blob = new Blob([new Uint8Array(imageBuffer)], { type: 'image/jpeg' });
         formData.append('file', blob, fileName || 'cow_symptom.jpg');
-
         const modelUrl = process.env.DISEASE_MODEL_URL || 'http://localhost:8080/predict';
-        const response = await fetch(modelUrl, {
-          method: 'POST',
-          body: formData,
-        });
 
-        if (response.ok) {
-          const data: any = await response.json();
+        // Fetch vision check and model predictions in parallel for maximum speed!
+        const [vRes, mRes] = await Promise.all([
+          groqApiKeys.length > 0
+            ? fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${groqApiKeys[0]}`,
+                },
+                body: JSON.stringify({
+                  model: 'qwen/qwen3.6-27b',
+                  messages: [
+                    {
+                      role: 'user',
+                      content: [
+                        { type: 'text', text: 'Analyze this image. Is there a cow, cattle, bull, ox, or calf visible? Reply strictly with YES_COW or NOT_COW. Do not write any other words.' },
+                        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}` } }
+                      ]
+                    }
+                  ],
+                  max_completion_tokens: 10,
+                }),
+              }).catch(() => null)
+            : Promise.resolve(null),
+
+          fetch(modelUrl, {
+            method: 'POST',
+            body: formData,
+          }).catch(() => null)
+        ]);
+
+        // 1. Process Vision check output first
+        if (vRes && vRes.ok) {
+          const vData: any = await vRes.json();
+          const vText = vData.choices?.[0]?.message?.content || '';
+          if (vText.includes('NOT_COW')) {
+            return {
+              assessmentId: 'none',
+              livestockId,
+              diagnosis: 'Invalid Image',
+              riskLevel: RiskLevel.NORMAL,
+              recommendations: [
+                'আপলোডকৃত ছবিতে কোনো গরু সনাক্ত করা যায়নি।',
+                'অনুগ্রহ করে গরুর স্পষ্ট ছবি ব্যবহার করুন।'
+              ],
+              analysis: 'পশুর ছবি সনাক্ত করা যায়নি (No cattle detected)',
+              assessedAt: new Date().toISOString(),
+            };
+          }
+        }
+
+        // 2. Process Model predictions output next
+        if (mRes && mRes.ok) {
+          const data: any = await mRes.json();
           if (data.diagnosis) {
             diagnosis = data.diagnosis;
           }
