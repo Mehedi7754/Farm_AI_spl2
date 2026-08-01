@@ -27,36 +27,24 @@ export class HealthService {
 
     try {
       if (imageBuffer) {
-        const b64 = imageBuffer.toString('base64');
         const formData = new FormData();
         const blob = new Blob([new Uint8Array(imageBuffer)], { type: 'image/jpeg' });
         formData.append('file', blob, fileName || 'cow_symptom.jpg');
         const modelUrl = process.env.DISEASE_MODEL_URL || 'http://localhost:8080/predict';
+        const hfToken = process.env.HF_TOKEN;
 
-        // Fetch vision check and model predictions in parallel for maximum speed!
-        const [vRes, mRes] = await Promise.all([
-          groqApiKeys.length > 0
-            ? fetch('https://api.groq.com/openai/v1/chat/completions', {
+        // Fetch vision check from Hugging Face and model predictions in parallel for maximum speed!
+        const [hfRes, mRes] = await Promise.all([
+          hfToken
+            ? fetch('https://api-inference.huggingface.co/models/google/vit-base-patch16-224', {
                 method: 'POST',
                 headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${groqApiKeys[0]}`,
+                  'Authorization': `Bearer ${hfToken}`,
+                  'Content-Type': 'application/octet-stream',
                 },
-                body: JSON.stringify({
-                  model: 'llama-3.2-11b-vision-preview',
-                  messages: [
-                    {
-                      role: 'user',
-                      content: [
-                        { type: 'text', text: 'Analyze this image. Is there a cow, cattle, bull, ox, or calf visible? Reply strictly with YES_COW or NOT_COW. Do not write any other words.' },
-                        { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}` } }
-                      ]
-                    }
-                  ],
-                  max_completion_tokens: 10,
-                }),
+                body: new Uint8Array(imageBuffer),
               }).catch((err) => {
-                console.error('Groq Vision check error:', err);
+                console.error('Hugging Face Vision check error:', err);
                 return null;
               })
             : Promise.resolve(null),
@@ -68,22 +56,33 @@ export class HealthService {
         ]);
 
         // 1. Process Vision check output first
-        if (vRes && vRes.ok) {
-          const vData: any = await vRes.json();
-          const vText = vData.choices?.[0]?.message?.content || '';
-          if (vText.includes('NOT_COW')) {
-            return {
-              assessmentId: 'none',
-              livestockId,
-              diagnosis: 'Invalid Image',
-              riskLevel: RiskLevel.NORMAL,
-              recommendations: [
-                'আপলোডকৃত ছবিতে কোনো গরু সনাক্ত করা যায়নি।',
-                'অনুগ্রহ করে গরুর স্পষ্ট ছবি ব্যবহার করুন।'
-              ],
-              analysis: 'পশুর ছবি সনাক্ত করা যায়নি (No cattle detected)',
-              assessedAt: new Date().toISOString(),
-            };
+        if (hfRes && hfRes.ok) {
+          const hfData: any = await hfRes.json();
+          if (Array.isArray(hfData) && hfData.length > 0) {
+            const labels = hfData.map((item: any) => (item.label || '').toLowerCase());
+            const hasCattle = labels.some((label: string) => 
+              label.includes('cow') || 
+              label.includes('ox') || 
+              label.includes('bull') || 
+              label.includes('cattle') || 
+              label.includes('calf') || 
+              label.includes('heifer') ||
+              label.includes('livestock')
+            );
+            if (!hasCattle) {
+              return {
+                assessmentId: 'none',
+                livestockId,
+                diagnosis: 'Invalid Image',
+                riskLevel: RiskLevel.NORMAL,
+                recommendations: [
+                  'আপলোডকৃত ছবিতে কোনো গরু সনাক্ত করা যায়নি।',
+                  'অনুগ্রহ করে গরুর স্পষ্ট ছবি ব্যবহার করুন।'
+                ],
+                analysis: 'পশুর ছবি সনাক্ত করা যায়নি (No cattle detected)',
+                assessedAt: new Date().toISOString(),
+              };
+            }
           }
         }
 
@@ -97,6 +96,38 @@ export class HealthService {
       }
     } catch (err) {
       console.warn('AI service fallback engaged:', err.message);
+    }
+
+    // Validate diagnosis output from classification model to filter out gibberish/invalid objects
+    const validDiseases = [
+      'lumpy',
+      'foot',
+      'fmd',
+      'lsd',
+      'anthrax',
+      'mastitis',
+      'black quarter',
+      'healthy',
+      'dairy cow'
+    ];
+    const isKnownDisease = validDiseases.some(d => diagnosis.toLowerCase().includes(d));
+    if (!isKnownDisease || diagnosis.length > 50 || diagnosis.includes('strickendog') || diagnosis.includes('http') || diagnosis.includes('www.')) {
+      diagnosis = 'Invalid Image';
+    }
+
+    if (diagnosis === 'Invalid Image') {
+      return {
+        assessmentId: 'none',
+        livestockId,
+        diagnosis: 'Invalid Image',
+        riskLevel: RiskLevel.NORMAL,
+        recommendations: [
+          'আপলোডকৃত ছবিতে কোনো গরু সনাক্ত করা যায়নি।',
+          'অনুগ্রহ করে গরুর স্পষ্ট ছবি ব্যবহার করুন।'
+        ],
+        analysis: 'পশুর ছবি সনাক্ত করা যায়নি (No cattle detected)',
+        assessedAt: new Date().toISOString(),
+      };
     }
 
     // Determine risk level based on AI diagnosis
