@@ -114,10 +114,6 @@ export class HealthService {
     ];
 
     // Query Groq dynamically to generate super brief Bengali recommendations based on prediction result
-    const envKeys = process.env.GROQ_API_KEYS ? process.env.GROQ_API_KEYS.split(',').map(k => k.trim()) : [];
-    const envSingleKey = process.env.GROQ_API_KEY ? [process.env.GROQ_API_KEY.trim()] : [];
-    const groqApiKeys = [...new Set([...envKeys, ...envSingleKey])].filter(k => k.length > 0);
-
     if (diagnosis && diagnosis !== 'No image provided for AI analysis' && groqApiKeys.length > 0) {
       const isHealthy = diagnosis.toLowerCase().includes('healthy') || diagnosis.toLowerCase().includes('normal') || diagnosis.toLowerCase().includes('dairy cow');
       if (isHealthy) {
