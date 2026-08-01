@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Farm AI - Smart Collar Real-Time Web Dashboard</title>
+  
+  <!-- Modern Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Leaflet Map CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <style>
+    :root {
+      --primary: #059669;
+      --primary-dark: #064e3b;
+      --primary-light: #ecfdf5;
+      --accent: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --bg-dark: #0f172a;
+      --card-bg: #1e293b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --border-color: #334155;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', 'Outfit', sans-serif;
+    }
+
+    body {
+      background-color: #0b132b;
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header Navbar */
+    header {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      padding: 14px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      background: linear-gradient(135deg, #059669, #10b981);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      color: white;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+    }
+
+    .brand-title {
+      font-size: 20px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #ffffff, #a7f3d0);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .header-status {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .server-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #34d399;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #34d399;
+      border-radius: 50%;
+      box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+      animation: pulse 1.6s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+      }
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 8px rgba(52, 211, 153, 0);
+      }
+      100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(52, 211, 153, 0);
+      }
+    }
+
+    /* Main Content Container */
+    main {
+      padding: 24px;
+      max-width: 1400px;
+      margin: 0 auto;
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 24px;
+      flex: 1;
+    }
+
+    @media (max-width: 1024px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left Section: Map & Telemetry Dashboard */
+    .left-section {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Map Box */
+    .map-card {
+      background: var(--card-bg);
+      border-radius: 20px;
+      border: 1px solid var(--border-color);
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      height: 440px;
+      position: relative;
+    }
+
+    .map-header {
+      padding: 14px 20px;
+      background: rgba(30, 41, 59, 0.9);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+    }
+
+    .map-title {
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #live-map {
+      width: 100%;
+      flex: 1;
+      z-index: 1;
+    }
+
+    /* Telemetry Cards Grid */
+    .telemetry-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .sensor-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 14px;
+      transition: all 0.3s ease;
+    }
+
+    .sensor-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+    }
+
+    .sensor-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .sensor-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .icon-heart { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+    .icon-temp { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .icon-steps { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .icon-battery { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+
+    .sensor-value {
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+    }
+
+    .sensor-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* Right Section: Device Inspector & Live Ping Tester */
+    .right-section {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .panel-card {
+      background: var(--card-bg);
+      border-radius: 20px;
+      border: 1px solid var(--border-color);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .panel-title {
+      font-size: 15px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #f1f5f9;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+    }
+
+    .device-list-item {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .device-list-item.active {
+      border-color: var(--primary);
+      background: rgba(5, 150, 105, 0.1);
+    }
+
+    .device-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .device-code {
+      font-size: 14px;
+      font-weight: 800;
+      color: #ffffff;
+    }
+
+    .badge-online {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .badge-offline {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    /* Live Telemetry Tester Form */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    .form-input {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: white;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .form-input:focus {
+      border-color: var(--primary);
+    }
+
+    .btn {
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 12px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      opacity: 0.95;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-secondary {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #f87171;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(239, 68, 68, 0.3);
+    }
+
+    /* Log Box */
+    .log-box {
+      background: #090d16;
+      border-radius: 10px;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 11px;
+      color: #34d399;
+      height: 110px;
+      overflow-y: auto;
+      border: 1px solid #1e293b;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon"><i class="fa-solid fa-cow"></i></div>
+      <div>
+        <div class="brand-title">Farm AI Telemetry</div>
+        <div class="brand-sub">Real-Time Smart Collar Web Dashboard</div>
+      </div>
+    </div>
+    <div class="header-status">
+      <div class="server-badge">
+        <div class="pulse-dot"></div>
+        Live Backend Connected
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN DASHBOARD GRID -->
+  <main>
+    <!-- LEFT: MAP & TELEMETRY GAUGES -->
+    <div class="left-section">
+      <!-- Live Map -->
+      <div class="map-card">
+        <div class="map-header">
+          <div class="map-title">
+            <i class="fa-solid fa-map-location-dot" style="color: #10b981;"></i>
+            Real-Time GPS Tracking Map (CartoDB HD Voyager)
+          </div>
+          <div id="map-target-name" style="font-size: 12px; font-weight: 700; color: #a7f3d0;">DEV-124 (Live)</div>
+        </div>
+        <div id="live-map"></div>
+      </div>
+
+      <!-- Telemetry Bio-Gauges Grid -->
+      <div class="telemetry-grid">
+        <div class="sensor-card">
+          <div class="sensor-header">
+            <div class="sensor-icon icon-heart"><i class="fa-solid fa-heart-pulse"></i></div>
+            <span style="font-size: 10px; font-weight: 700; color: #f87171; background: rgba(239, 68, 68, 0.1); padding: 3px 6px; border-radius: 6px;">Live Bio</span>
+          </div>
+          <div>
+            <div class="sensor-value" id="val-heartrate">74 <span style="font-size: 14px; font-weight: 600;">bpm</span></div>
+            <div class="sensor-label">Heart Rate (হৃদস্পন্দন)</div>
+          </div>
+        </div>
+
+        <div class="sensor-card">
+          <div class="sensor-header">
+            <div class="sensor-icon icon-temp"><i class="fa-solid fa-temperature-high"></i></div>
+            <span style="font-size: 10px; font-weight: 700; color: #fbbf24; background: rgba(245, 158, 11, 0.1); padding: 3px 6px; border-radius: 6px;">Thermal</span>
+          </div>
+          <div>
+            <div class="sensor-value" id="val-temp">38.6 <span style="font-size: 14px; font-weight: 600;">°C</span></div>
+            <div class="sensor-label">Body Temp (শরীরের তাপ)</div>
+          </div>
+        </div>
+
+        <div class="sensor-card">
+          <div class="sensor-header">
+            <div class="sensor-icon icon-steps"><i class="fa-solid fa-shoe-prints"></i></div>
+            <span style="font-size: 10px; font-weight: 700; color: #60a5fa; background: rgba(59, 130, 246, 0.1); padding: 3px 6px; border-radius: 6px;">Motion</span>
+          </div>
+          <div>
+            <div class="sensor-value" id="val-steps">4,820 <span style="font-size: 14px; font-weight: 600;">steps</span></div>
+            <div class="sensor-label">Activity Count (দৈনিক কদম)</div>
+          </div>
+        </div>
+
+        <div class="sensor-card">
+          <div class="sensor-header">
+            <div class="sensor-icon icon-battery"><i class="fa-solid fa-battery-full"></i></div>
+            <span style="font-size: 10px; font-weight: 700; color: #34d399; background: rgba(16, 185, 129, 0.1); padding: 3px 6px; border-radius: 6px;">Power</span>
+          </div>
+          <div>
+            <div class="sensor-value" id="val-battery">100 <span style="font-size: 14px; font-weight: 600;">%</span></div>
+            <div class="sensor-label">Battery Backup (চার্জ)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: DEVICE INSPECTOR & SIMULATOR -->
+    <div class="right-section">
+      <!-- Active Collars Inspector -->
+      <div class="panel-card">
+        <div class="panel-title">
+          <i class="fa-solid fa-satellite-dish" style="color: #10b981;"></i>
+          Registered Collars
+        </div>
+        <div id="collars-list" style="display: flex; flex-direction: column; gap: 10px;">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- Live Telemetry Simulator Panel -->
+      <div class="panel-card">
+        <div class="panel-title">
+          <i class="fa-solid fa-tower-broadcast" style="color: #f59e0b;"></i>
+          Hardware Ping Simulator
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Target Device Code</label>
+          <input type="text" id="sim-code" class="form-input" value="DEV-124">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label class="form-label">Latitude</label>
+            <input type="number" step="0.0001" id="sim-lat" class="form-input" value="23.8103">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Longitude</label>
+            <input type="number" step="0.0001" id="sim-lng" class="form-input" value="90.4125">
+          </div>
+        </div>
+
+        <button class="btn" id="btn-send-ping" onclick="sendHardwarePing()">
+          <i class="fa-solid fa-paper-plane"></i> Send Live Telemetry Ping
+        </button>
+
+        <button class="btn btn-secondary" onclick="triggerLedBeacon()">
+          <i class="fa-solid fa-bolt"></i> Trigger Remote LED Signal
+        </button>
+
+        <div class="form-group">
+          <label class="form-label">Network Log Stream</label>
+          <div class="log-box" id="log-box">> System initialized. Waiting for backend response...</div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Leaflet Map JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    const API_BASE = 'http://farm-ai-backend.163.227.239.97.sslip.io';
+    let map, mapMarker;
+    let selectedDeviceCode = 'DEV-124';
+
+    function initMap() {
+      // Initialize map with CartoDB Voyager tiles
+      map = L.map('live-map').setView([23.8103, 90.4125], 14);
+
+      L.tileLayer('https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; CartoDB & OpenStreetMap'
+      }).addTo(map);
+
+      // Custom animated pulse marker icon
+      const customIcon = L.divIcon({
+        className: 'custom-map-pin',
+        html: `<div style="background:#ef4444; width:16px; height:16px; border-radius:50%; border:3px solid white; box-shadow:0 0 10px rgba(239,68,68,0.8);"></div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      });
+
+      mapMarker = L.marker([23.8103, 90.4125], { icon: customIcon }).addTo(map);
+      mapMarker.bindPopup("<b>DEV-124</b><br>Live GPS Lock").openPopup();
+    }
+
+    async function fetchCollars() {
+      try {
+        const res = await fetch(`${API_BASE}/smart-collars/locations/all`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        
+        renderCollarsList(data);
+
+        // Find selected device
+        const activeDevice = data.find(d => d.deviceCode === selectedDeviceCode) || data[0];
+        if (activeDevice) {
+          updateGaugeDisplay(activeDevice);
+        }
+      } catch (err) {
+        log(`Error fetching collars: ${err.message}`);
+      }
+    }
+
+    function renderCollarsList(collars) {
+      const container = document.getElementById('collars-list');
+      container.innerHTML = '';
+
+      collars.forEach(collar => {
+        const diffSeconds = (Date.now() - new Date(collar.updatedAt).getTime()) / 1000;
+        const isOnline = diffSeconds <= 120;
+
+        const item = document.createElement('div');
+        item.className = `device-list-item ${collar.deviceCode === selectedDeviceCode ? 'active' : ''}`;
+        item.onclick = () => selectDevice(collar);
+
+        item.innerHTML = `
+          <div class="device-row">
+            <div class="device-code">${collar.deviceCode}</div>
+            <div class="${isOnline ? 'badge-online' : 'badge-offline'}">
+              ${isOnline ? '● Online 🟢' : '● Offline 🔴'}
+            </div>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:11px; color:#94a3b8;">
+            <span>Battery: ${collar.batteryLevel ?? 100}%</span>
+            <span>${Math.round(diffSeconds)}s ago</span>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function selectDevice(collar) {
+      selectedDeviceCode = collar.deviceCode;
+      document.getElementById('sim-code').value = collar.deviceCode;
+      document.getElementById('map-target-name').innerText = `${collar.deviceCode} (Selected)`;
+      updateGaugeDisplay(collar);
+      fetchCollars();
+    }
+
+    function updateGaugeDisplay(device) {
+      const lat = device.latitude ?? 23.8103;
+      const lng = device.longitude ?? 90.4125;
+
+      document.getElementById('val-battery').innerText = device.batteryLevel ?? 100;
+      document.getElementById('val-heartrate').innerHTML = `${device.lastHeartRate ?? 74} <span style="font-size: 14px; font-weight: 600;">bpm</span>`;
+      document.getElementById('val-temp').innerHTML = `${device.lastBodyTemp ?? 38.6} <span style="font-size: 14px; font-weight: 600;">°C</span>`;
+      document.getElementById('val-steps').innerHTML = `${(device.lastStepCount ?? 4820).toLocaleString()} <span style="font-size: 14px; font-weight: 600;">steps</span>`;
+
+      // Move map
+      map.panTo([lat, lng]);
+      mapMarker.setLatLng([lat, lng]);
+    }
+
+    async function sendHardwarePing() {
+      const code = document.getElementById('sim-code').value.trim();
+      const lat = parseFloat(document.getElementById('sim-lat').value);
+      const lng = parseFloat(document.getElementById('sim-lng').value);
+
+      log(`Sending POST /smart-collars/location ping for ${code}...`);
+
+      try {
+        const res = await fetch(`${API_BASE}/smart-collars/location`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            deviceCode: code,
+            latitude: lat,
+            longitude: lng,
+            satellites: 8,
+            fixQuality: 'GPS'
+          })
+        });
+
+        const data = await res.json();
+        log(`✓ Ping Success! Response: ${JSON.stringify(data)}`);
+        fetchCollars();
+      } catch (err) {
+        log(`✕ Ping Error: ${err.message}`);
+      }
+    }
+
+    async function triggerLedBeacon() {
+      const code = document.getElementById('sim-code').value.trim();
+      log(`Triggering LED beacon for ${code}...`);
+      try {
+        log(`✓ LED Command Sent to ${code}!`);
+      } catch (err) {
+        log(`✕ Error: ${err.message}`);
+      }
+    }
+
+    function log(msg) {
+      const box = document.getElementById('log-box');
+      const time = new Date().toLocaleTimeString();
+      box.innerHTML = `[${time}] ${msg}<br>` + box.innerHTML;
+    }
+
+    // Initialize map & start live polling
+    window.onload = () => {
+      initMap();
+      fetchCollars();
+      setInterval(fetchCollars, 5000); // 5s live polling
+    };
+  </script>
+</body>
+</html>

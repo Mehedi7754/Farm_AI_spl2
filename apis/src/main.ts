@@ -14,6 +14,14 @@ async function bootstrap() {
     prefix: '/uploads/',
   });
 
+  app.useStaticAssets(join(__dirname, '..', 'public'), {
+    prefix: '/dashboard/',
+  });
+
+  app.useStaticAssets(join(__dirname, '..', 'public'), {
+    prefix: '/web/',
+  });
+
   app.enableCors({
     origin: '*',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',

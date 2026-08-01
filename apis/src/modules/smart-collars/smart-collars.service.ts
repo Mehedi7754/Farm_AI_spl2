@@ -41,6 +41,13 @@ export class SmartCollarsService {
     return collar;
   }
 
+  private checkIsOnline(updatedAt: Date | null): boolean {
+    if (!updatedAt) return false;
+    const diffSeconds = (Date.now() - new Date(updatedAt).getTime()) / 1000;
+    // Consider device online ONLY IF it sent a telemetry/location ping within the last 120 seconds (2 mins)
+    return diffSeconds <= 120;
+  }
+
   async findByDeviceCode(deviceCode: string) {
     const collar = await this.prisma.smartCollar.findUnique({
       where: { deviceCode },
@@ -48,7 +55,12 @@ export class SmartCollarsService {
     });
 
     if (!collar) throw new NotFoundException(`Smart Collar with device code ${deviceCode} not found`);
-    return collar;
+    
+    const isOnline = this.checkIsOnline(collar.updatedAt);
+    return {
+      ...collar,
+      isOnline,
+    };
   }
 
   async updateTelemetry(id: string, dto: UpdateTelemetryDto) {
@@ -186,7 +198,7 @@ export class SmartCollarsService {
       livestockId: collar.livestockId,
       livestock: collar.livestock,
       batteryLevel: collar.batteryLevel,
-      isOnline: collar.isOnline,
+      isOnline: this.checkIsOnline(collar.updatedAt),
       latitude: collar.lastLatitude,
       longitude: collar.lastLongitude,
       updatedAt: collar.updatedAt,
