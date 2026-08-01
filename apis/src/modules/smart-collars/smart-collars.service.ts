@@ -56,11 +56,7 @@ export class SmartCollarsService {
 
     if (!collar) throw new NotFoundException(`Smart Collar with device code ${deviceCode} not found`);
     
-    const isOnline = this.checkIsOnline(collar.updatedAt);
-    return {
-      ...collar,
-      isOnline,
-    };
+    return collar;
   }
 
   async updateTelemetry(id: string, dto: UpdateTelemetryDto) {
@@ -198,7 +194,7 @@ export class SmartCollarsService {
       livestockId: collar.livestockId,
       livestock: collar.livestock,
       batteryLevel: collar.batteryLevel,
-      isOnline: this.checkIsOnline(collar.updatedAt),
+      isOnline: collar.isOnline,
       latitude: collar.lastLatitude,
       longitude: collar.lastLongitude,
       updatedAt: collar.updatedAt,

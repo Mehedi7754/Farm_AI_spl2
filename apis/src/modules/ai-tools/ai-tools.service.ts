@@ -247,7 +247,7 @@ The JSON array must be at the root. Example:
               'Authorization': `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-              model: 'qwen/qwen3.6-27b',
+              model: 'llama-3.3-70b-versatile',
               messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt },
@@ -268,12 +268,8 @@ The JSON array must be at the root. Example:
             const data = await response.json();
             let replyText = data.choices?.[0]?.message?.content || '';
 
-            this.logger.warn(`Raw Qwen Output: ${replyText}`);
-
             // Strip <think> blocks if present
-            if (replyText.includes('</think>')) {
-              replyText = replyText.split('</think>')[1];
-            }
+            replyText = replyText.replace(/<think>[\s\S]*?(<\/think>|$)/gi, '').trim();
 
             // Find JSON array bounds
             const firstBracket = replyText.indexOf('[');
