@@ -21,6 +21,7 @@ class _SymptomAnalysisScreenState extends State<SymptomAnalysisScreen> {
   final List<File> _attachedPhotos = [];
   final TextEditingController _descriptionController = TextEditingController();
   bool _isAnalyzing = false;
+  String _loadingStatus = '';
   Map<String, dynamic>? _analysisResult;
   final ImagePicker _picker = ImagePicker();
 
@@ -60,7 +61,10 @@ class _SymptomAnalysisScreenState extends State<SymptomAnalysisScreen> {
       return;
     }
 
-    setState(() => _isAnalyzing = true);
+    setState(() {
+      _isAnalyzing = true;
+      _loadingStatus = '১. ছবি প্রসেস ও আপলোড হচ্ছে...';
+    });
     
     Map<String, dynamic>? result;
 
@@ -70,13 +74,19 @@ class _SymptomAnalysisScreenState extends State<SymptomAnalysisScreen> {
         final imageFile = _attachedPhotos.first;
         final imageBytes = await imageFile.readAsBytes();
 
-        debugPrint('🚀 Sending photo (${imageBytes.length} bytes) to SageMaker GPU AI Inference Engine...');
+        setState(() {
+          _loadingStatus = '২. মডেল দ্বারা রোগ নির্ণয় হচ্ছে...';
+        });
+        await Future.delayed(const Duration(milliseconds: 600));
+
+        setState(() {
+          _loadingStatus = '৩. চিকিৎসা ও করণীয় জেনারেট হচ্ছে...';
+        });
+
         result = await ApiClient.invokeSageMakerDiseaseGPU(imageBytes: imageBytes);
       } catch (e) {
         debugPrint('GPU Inference error: $e');
       }
-    }
-
     } else {
       // 2. Fallback to Backend Symptom API if NO image is uploaded
       try {
@@ -84,6 +94,15 @@ class _SymptomAnalysisScreenState extends State<SymptomAnalysisScreen> {
         if (_descriptionController.text.trim().isNotEmpty) {
           symptomList.add(_descriptionController.text.trim());
         }
+
+        setState(() {
+          _loadingStatus = '২. উপসর্গ বিশ্লেষণ করা হচ্ছে...';
+        });
+        await Future.delayed(const Duration(milliseconds: 600));
+
+        setState(() {
+          _loadingStatus = '৩. চিকিৎসাপত্র জেনারেট হচ্ছে...';
+        });
 
         final backendResult = await ApiClient.analyzeSymptoms(
           symptomList,
@@ -436,8 +455,8 @@ class _SymptomAnalysisScreenState extends State<SymptomAnalysisScreen> {
                     ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
                     : const Icon(Icons.psychology_rounded, size: 20, color: Colors.white),
                 label: Text(
-                  _isAnalyzing ? 'SageMaker GPU রোগ বিশ্লেষণ হচ্ছে...' : 'FarmAI রোগ বিশ্লেষণ শুরু করুন',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  _isAnalyzing ? _loadingStatus : 'FarmAI রোগ বিশ্লেষণ শুরু করুন',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                 ),
               ),
             ),
