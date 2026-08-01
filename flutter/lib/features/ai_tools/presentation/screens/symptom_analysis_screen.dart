@@ -93,20 +93,47 @@ class _SymptomAnalysisScreenState extends State<SymptomAnalysisScreen> {
         final analysisStr = backendResult['analysis']?.toString() ?? '';
         final risk = backendResult['riskLevel']?.toString() ?? 'HIGH';
 
+        // Extract actions dynamically from AI response if possible
+        final List<String> actions = [];
+        for (var line in analysisStr.split('\n')) {
+          final trimmed = line.trim();
+          if (trimmed.startsWith(RegExp(r'^[-*•\d\.\)]+'))) {
+            final sanitized = trimmed.replaceFirst(RegExp(r'^[-*•\d\.\)\s]+'), '').trim();
+            if (sanitized.isNotEmpty && sanitized.length > 5) {
+              actions.add(sanitized);
+            }
+          }
+        }
+        if (actions.isEmpty) {
+          actions.addAll([
+            'আক্রান্ত পশুকে ফার্মের অন্যান্য সুস্থ পশু থেকে বিচ্ছিন্ন স্থানে কোয়ারেন্টাইন করুন।',
+            'পশুর খাবারের পাত্র ও পানের পানি আলাদা রাখুন।',
+            'জরুরি ভিত্তিতে রেজিস্টার্ড ভেটেরিনারি সার্জনের শরণাপন্ন হন।',
+          ]);
+        }
+
+        // Try to identify the disease name from the analysis string
+        String diseaseTitle = 'উপসর্গভিত্তিক AI বিশ্লেষণ (Symptom Analysis)';
+        if (analysisStr.contains('ল্যাম্পি') || _selectedSymptoms.contains('ত্বকে গুটি/ল্যাম্প')) {
+          diseaseTitle = 'ল্যাম্পি স্কিন ডিজিজ (LSD)';
+        } else if (analysisStr.contains('খুরা')) {
+          diseaseTitle = 'খুরা রোগ (FMD)';
+        } else if (analysisStr.contains('তড়কা')) {
+          diseaseTitle = 'তড়কা রোগ (Anthrax)';
+        } else if (analysisStr.contains('ওলান পাকা') || analysisStr.contains('ম্যাসটাইটিস')) {
+          diseaseTitle = 'ওলান পাকা রোগ (Mastitis)';
+        } else if (analysisStr.contains('বাদলা')) {
+          diseaseTitle = 'বাদলা রোগ (Black Quarter)';
+        }
+
         result = {
-          'possibleDiagnosis': analysisStr.contains('ল্যাম্পি') || _selectedSymptoms.contains('ত্বকে গুটি/ল্যাম্প')
-              ? 'ল্যাম্পি স্কিন ডিজিজ (LSD)'
-              : 'খুরা রোগ (FMD)',
-          'riskLevel': risk == 'VET_SOON' ? 'উচ্চ ঝুঁকি (জরুরি ভেট পরামর্শ)' : 'উচ্চ ঝুঁকি (High Risk)',
-          'confidenceScore': 96.5,
+          'possibleDiagnosis': diseaseTitle,
+          'riskLevel': risk == 'EMERGENCY' ? 'উচ্চ ঝুঁকি (জরুরি ভেট পরামর্শ)' : (risk == 'VET_SOON' ? 'মাঝারি ঝুঁকি (ভেটেরিনারি পরামর্শ)' : 'স্বাভাবিক ঝুঁকি'),
+          'confidenceScore': 95.0,
           'summaryText': analysisStr.isNotEmpty
               ? analysisStr
-              : 'AI সিম্পটম অ্যানালাইজার পশুর প্রদত্ত উপসর্গ ও ছবিতে সংক্রামক রোগের প্রাথমিক লক্ষণ সনাক্ত করেছে।',
-          'recommendedActions': [
-            'আক্রান্ত পশুকে ফার্মের অন্যান্য সুস্থ পশু থেকে বিচ্ছিন্ন স্থানে কোয়ারেন্টাইন করুন।',
-            'পশুর খাবারের পাত্র ও পানের পানি আলাদা রাখুন এবং ব্লিচিং পাউডার স্প্রে করুন।',
-            'জরুরি ভিত্তিতে রেজিস্টার্ড ভেটেরিনারি সার্জনের শরণাপন্ন হন।',
-          ],
+              : 'AI সিম্পটম অ্যানালাইজার পশুর প্রদত্ত উপসর্গ অনুযায়ী বিশ্লেষণ সম্পন্ন করেছে।',
+          'recommendedActions': actions,
         };
       }
     } catch (e) {

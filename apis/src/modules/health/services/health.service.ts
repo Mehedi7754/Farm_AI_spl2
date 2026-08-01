@@ -23,45 +23,21 @@ export class HealthService {
 
     try {
       if (imageBuffer) {
-        // 1. Primary: Call AWS SageMaker Real-time Endpoint
-        try {
-          const { SageMakerRuntimeClient, InvokeEndpointCommand } = await import('@aws-sdk/client-sagemaker-runtime');
-          
-          const sagemakerClient = new SageMakerRuntimeClient({ region: 'us-east-1' });
-          
-          const response = await sagemakerClient.send(new InvokeEndpointCommand({
-            EndpointName: 'alvee-farmai-cow-disease-endpoint',
-            ContentType: 'image/jpeg',
-            Body: imageBuffer
-          }));
-          
-          if (response.Body) {
-            const responseText = Buffer.from(response.Body).toString('utf-8');
-            const result = JSON.parse(responseText);
-            if (result && result.diagnosis) {
-              diagnosis = result.diagnosis;
-            } else if (result && result.error) {
-              throw new Error(result.error);
-            }
-          }
-        } catch (awsErr) {
-          console.warn('AWS Real-time Endpoint failed, falling back to local Rest API:', awsErr.message);
-          // 2. Fallback: Local / Gradio REST API
-          const formData = new FormData();
-          const blob = new Blob([new Uint8Array(imageBuffer)], { type: 'image/jpeg' });
-          formData.append('file', blob, fileName || 'cow_symptom.jpg');
- 
-          const modelUrl = process.env.DISEASE_MODEL_URL || 'http://localhost:8080/predict';
-          const response = await fetch(modelUrl, {
-            method: 'POST',
-            body: formData,
-          });
- 
-          if (response.ok) {
-            const data: any = await response.json();
-            if (data.diagnosis) {
-              diagnosis = data.diagnosis;
-            }
+        // Direct call to Prediction Model API via DISEASE_MODEL_URL
+        const formData = new FormData();
+        const blob = new Blob([new Uint8Array(imageBuffer)], { type: 'image/jpeg' });
+        formData.append('file', blob, fileName || 'cow_symptom.jpg');
+
+        const modelUrl = process.env.DISEASE_MODEL_URL || 'http://localhost:8080/predict';
+        const response = await fetch(modelUrl, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (response.ok) {
+          const data: any = await response.json();
+          if (data.diagnosis) {
+            diagnosis = data.diagnosis;
           }
         }
       }
