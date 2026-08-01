@@ -75,12 +75,12 @@ class _SymptomAnalysisScreenState extends State<SymptomAnalysisScreen> {
         final imageBytes = await imageFile.readAsBytes();
 
         setState(() {
-          _loadingStatus = '২. মডেল দ্বারা রোগ নির্ণয় হচ্ছে...';
+          _loadingStatus = '২. এআই মডেল দ্বারা রোগ নির্ণয় হচ্ছে...';
         });
-        await Future.delayed(const Duration(milliseconds: 600));
+        await Future.delayed(const Duration(milliseconds: 300));
 
         setState(() {
-          _loadingStatus = '৩. চিকিৎসা ও করণীয় জেনারেট হচ্ছে...';
+          _loadingStatus = '৩. Groq AI দ্বারা নির্দেশিকা জেনারেট হচ্ছে...';
         });
 
         result = await ApiClient.invokeSageMakerDiseaseGPU(imageBytes: imageBytes);
