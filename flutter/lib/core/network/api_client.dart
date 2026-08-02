@@ -520,8 +520,14 @@ class ApiClient {
             'deviceCode': data['deviceCode'],
             'latitude': (data['lastLatitude'] as num?)?.toDouble() ?? 0.0,
             'longitude': (data['lastLongitude'] as num?)?.toDouble() ?? 0.0,
+            'lastLatitude': (data['lastLatitude'] as num?)?.toDouble() ?? 0.0,
+            'lastLongitude': (data['lastLongitude'] as num?)?.toDouble() ?? 0.0,
             'batteryLevel': data['batteryLevel'] ?? 100,
             'isOnline': (data['isOnline'] == true) || listOnlineStatus,
+            'updatedAt': data['updatedAt'],
+            'lastHeartRate': data['lastHeartRate'],
+            'lastBodyTemp': data['lastBodyTemp'],
+            'lastStepCount': data['lastStepCount'],
           };
         }
       }

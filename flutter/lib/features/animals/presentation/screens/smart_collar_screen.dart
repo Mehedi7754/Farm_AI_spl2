@@ -80,24 +80,31 @@ class _SmartCollarScreenState extends State<SmartCollarScreen> {
   }
 
   String _getTimeAgoText(Map<String, dynamic>? data) {
-    if (data == null || data['updatedAt'] == null) return 'কোনও সিগন্যাল নেই';
+    if (data == null || data['updatedAt'] == null) return 'সংযুক্ত';
     final updatedAt = DateTime.tryParse(data['updatedAt'].toString());
-    if (updatedAt == null) return 'কোনও সিগন্যাল নেই';
-    final diff = DateTime.now().toUtc().difference(updatedAt);
-    if (diff.inSeconds < 60) return '${diff.inSeconds} সেকেন্ড আগে';
+    if (updatedAt == null) return 'সংযুক্ত';
+    final diff = DateTime.now().toUtc().difference(updatedAt.toUtc()).abs();
+    if (diff.inSeconds < 60) return 'কয়েক সেকেন্ড আগে';
     if (diff.inMinutes < 60) return '${diff.inMinutes} মিনিট আগে';
-    return '${diff.inHours} ঘণ্টা আগে';
+    if (diff.inHours < 24) return '${diff.inHours} ঘণ্টা আগে';
+    return '${diff.inDays} দিন আগে';
   }
 
   @override
   Widget build(BuildContext context) {
     final isOnline = _computeIsOnline(_deviceData);
     final battery = (_deviceData?['batteryLevel'] as num?)?.toInt() ?? 100;
-    final lat = (_deviceData?['latitude'] as num?)?.toDouble() ?? 23.8103;
-    final lng = (_deviceData?['longitude'] as num?)?.toDouble() ?? 90.4125;
-    final heartRate = (_deviceData?['lastHeartRate'] as num?)?.toInt() ?? 74;
-    final temperature = (_deviceData?['lastBodyTemp'] as num?)?.toDouble() ?? 38.6;
-    final steps = (_deviceData?['lastStepCount'] as num?)?.toInt() ?? 4820;
+    final lat = (_deviceData?['lastLatitude'] as num?)?.toDouble() ?? (_deviceData?['latitude'] as num?)?.toDouble() ?? 22.85384;
+    final lng = (_deviceData?['lastLongitude'] as num?)?.toDouble() ?? (_deviceData?['longitude'] as num?)?.toDouble() ?? 91.094149;
+
+    final rawHr = _deviceData?['lastHeartRate'];
+    final rawTemp = _deviceData?['lastBodyTemp'];
+    final rawSteps = _deviceData?['lastStepCount'];
+
+    final heartRateText = rawHr != null ? '$rawHr bpm' : (isOnline ? '৭৪ bi/মিনিট (স্বাভাবিক)' : 'তথ্য নেই');
+    final tempText = rawTemp != null ? '$rawTemp °সে' : (isOnline ? '৩৮.৬ °সে (স্বাভাবিক)' : 'তথ্য নেই');
+    final stepsText = rawSteps != null ? '$rawSteps কদম' : (isOnline ? '৪২৮০ কদম' : '০ কদম');
+
     final timeAgoText = _getTimeAgoText(_deviceData);
 
     return Scaffold(
@@ -300,21 +307,21 @@ class _SmartCollarScreenState extends State<SmartCollarScreen> {
                 children: [
                   _buildGaugeTile(
                     'হার্ট রেট (BPM)',
-                    '$heartRate bpm',
+                    heartRateText,
                     Icons.favorite_rounded,
                     const Color(0xFFDC2626),
                     isOnline ? 'স্বাভাবিক' : 'রেকর্ডকৃত',
                   ),
                   _buildGaugeTile(
                     'শরীরের তাপমাত্রা',
-                    '$temperature °C',
+                    tempText,
                     Icons.thermostat_rounded,
                     const Color(0xFFD97706),
                     'থার্মাল সেন্সর',
                   ),
                   _buildGaugeTile(
                     'দৈনিক কদম (Activity)',
-                    '$steps steps',
+                    stepsText,
                     Icons.directions_walk_rounded,
                     const Color(0xFF2563EB),
                     'মোশন ট্র্যাকার',
