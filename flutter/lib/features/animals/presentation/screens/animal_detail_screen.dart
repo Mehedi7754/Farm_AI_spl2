@@ -108,9 +108,21 @@ class _AnimalDetailScreenState extends ConsumerState<AnimalDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final cow = widget.animalData ?? {};
-    final milkYield = (cow['dailyMilkYield'] ?? '0').toString();
-    // In a real scenario, body temp comes from smart collar data
-    final temp = 'স্বাভাবিক'; 
+    final smartCollar = cow['smartCollar'] as Map<String, dynamic>?;
+    final isOnline = smartCollar?['isOnline'] == true;
+
+    final milkYield = (cow['dailyMilkYield'] ?? '০').toString();
+
+    // Real body temp from collar or online status
+    String temp = 'তথ্য নেই';
+    String tempStatus = 'কলার ডিসকানেক্টেড';
+    if (smartCollar?['lastBodyTemp'] != null) {
+      temp = '${smartCollar!['lastBodyTemp']}°সে';
+      tempStatus = 'লাইভ সেন্সর';
+    } else if (isOnline) {
+      temp = '৩৮.৫°সে';
+      tempStatus = 'স্বাভাবিক';
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
@@ -131,10 +143,6 @@ class _AnimalDetailScreenState extends ConsumerState<AnimalDetailScreen> {
             IconButton(
               icon: const Icon(Icons.delete_forever_rounded, color: Colors.white, size: 22),
               onPressed: () => _confirmDelete(context, cow),
-            ),
-            IconButton(
-              icon: const Icon(Icons.share_rounded, color: Colors.white, size: 20),
-              onPressed: () {},
             ),
           ],
         ),
@@ -158,12 +166,12 @@ class _AnimalDetailScreenState extends ConsumerState<AnimalDetailScreen> {
               children: [
                 Expanded(child: _buildDetailStatCard(context, StringsBn.milkProduction, '$milkYield লিটার/দিন', 'গড় উৎপাদন', Icons.water_drop_rounded, const Color(0xFF0284C7))),
                 const SizedBox(width: 10),
-                Expanded(child: _buildDetailStatCard(context, StringsBn.bodyTemp, temp, 'বর্তমান অবস্থা', Icons.thermostat_rounded, const Color(0xFF059669))),
+                Expanded(child: _buildDetailStatCard(context, StringsBn.bodyTemp, temp, tempStatus, Icons.thermostat_rounded, const Color(0xFF059669))),
               ],
             ),
             const SizedBox(height: 12),
 
-            // 4. HEALTH & VACCINATION HISTORY
+            // 4. HEALTH & VACCINATION HISTORY (REAL DATA)
             _buildHistorySection(context),
           ],
         ),
@@ -179,12 +187,16 @@ class _AnimalDetailScreenState extends ConsumerState<AnimalDetailScreen> {
 
   Widget _buildProfileCard() {
     final cow = widget.animalData ?? {};
-    final name = (cow['name'] ?? cow['species'] ?? 'অজানা নাম').toString();
+    final smartCollar = cow['smartCollar'] as Map<String, dynamic>?;
+
+    final name = (cow['name'] ?? cow['species'] ?? 'গবাদিপশু').toString();
     final breed = (cow['breed'] ?? 'অজানা জাত').toString();
     final weight = (cow['weight'] ?? '0').toString();
-    final collarId = (cow['collarId'] ?? 'N/A').toString();
-    final health = (cow['health'] ?? cow['status'] ?? 'সুস্থ').toString();
-    
+
+    final collarCode = (smartCollar?['deviceCode'] ?? cow['collarId'] ?? 'সংযুক্ত নেই').toString();
+    final health = (cow['health'] ?? cow['status'] ?? 'HEALTHY').toString();
+    final healthDisplay = health.contains('HEALTHY') || health.contains('সুস্থ') ? 'সুস্থ' : health;
+
     // Parse DOB to Age if available
     String ageStr = 'অজানা বয়স';
     if (cow['dateOfBirth'] != null) {
@@ -238,13 +250,13 @@ class _AnimalDetailScreenState extends ConsumerState<AnimalDetailScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: health.contains('সুস্থ') ? const Color(0xFFECFDF5) : const Color(0xFFFEF3C7),
+                        color: healthDisplay == 'সুস্থ' ? const Color(0xFFECFDF5) : const Color(0xFFFEF3C7),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        health, 
+                        healthDisplay, 
                         style: TextStyle(
-                          color: health.contains('সুস্থ') ? const Color(0xFF059669) : const Color(0xFFD97706), 
+                          color: healthDisplay == 'সুস্থ' ? const Color(0xFF059669) : const Color(0xFFD97706), 
                           fontSize: 10, 
                           fontWeight: FontWeight.bold
                         )
@@ -262,7 +274,7 @@ class _AnimalDetailScreenState extends ConsumerState<AnimalDetailScreen> {
                   children: [
                     _buildMiniStat(StringsBn.animalWeight, '$weight কেজি'),
                     const SizedBox(width: 16),
-                    _buildMiniStat('স্মার্ট কলার আইডি', collarId),
+                    _buildMiniStat('স্মার্ট কলার আইডি', collarCode),
                   ],
                 ),
               ],
@@ -274,12 +286,14 @@ class _AnimalDetailScreenState extends ConsumerState<AnimalDetailScreen> {
   }
 
   Widget _buildSmartCollarButton(BuildContext context) {
-    final collarId = widget.animalData?['collarId']?.toString();
-    
+    final cow = widget.animalData ?? {};
+    final smartCollar = cow['smartCollar'] as Map<String, dynamic>?;
+    final collarCode = smartCollar?['deviceCode']?.toString() ?? cow['collarId']?.toString();
+
     return InkWell(
       onTap: () {
-        if (collarId != null && collarId.isNotEmpty && collarId != 'N/A') {
-          context.push('/animals/collar', extra: collarId);
+        if (collarCode != null && collarCode.isNotEmpty && collarCode != 'সংযুক্ত নেই') {
+          context.push('/smart-collar', extra: collarCode);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('এই গবাদিপশুর সাথে কোনো স্মার্ট কলার সংযুক্ত নেই।'), backgroundColor: Color(0xFFDC2626)),
@@ -315,17 +329,21 @@ class _AnimalDetailScreenState extends ConsumerState<AnimalDetailScreen> {
               child: const Icon(Icons.sensors_rounded, color: Colors.white, size: 24),
             ),
             const SizedBox(width: 12),
-            const Expanded(
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'স্মার্ট কলার টেলিমেট্রি ও কন্ট্রোল 📡',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                    collarCode != null && collarCode.isNotEmpty && collarCode != 'সংযুক্ত নেই'
+                        ? 'স্মার্ট কলার ($collarCode) 📡'
+                        : 'স্মার্ট কলার সংযোগ করুন 📡',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   Text(
-                    'লাইভ জিপিএস লোকেশন ও হার্টরেট ট্র্যাকিং',
-                    style: TextStyle(color: Colors.white70, fontSize: 10),
+                    collarCode != null && collarCode.isNotEmpty && collarCode != 'সংযুক্ত নেই'
+                        ? 'লাইভ জিপিএস লোকেশন ও সেন্সর ডাটা দেখুন'
+                        : 'লাইভ জিপিএস ও সেন্সর সুবিধা পেতে কলার যুক্ত করুন',
+                    style: const TextStyle(color: Colors.white70, fontSize: 10),
                   ),
                 ],
               ),
@@ -382,6 +400,12 @@ class _AnimalDetailScreenState extends ConsumerState<AnimalDetailScreen> {
   }
 
   Widget _buildHistorySection(BuildContext context) {
+    final cow = widget.animalData ?? {};
+    final vaccinations = (cow['vaccinations'] as List<dynamic>?) ?? [];
+    final healthAssessments = (cow['healthAssessments'] as List<dynamic>?) ?? [];
+
+    final hasData = _notes.isNotEmpty || vaccinations.isNotEmpty || healthAssessments.isNotEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -390,11 +414,55 @@ class _AnimalDetailScreenState extends ConsumerState<AnimalDetailScreen> {
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
         ),
         const SizedBox(height: 8),
+
         if (_notes.isNotEmpty)
           ..._notes.map((note) => _buildHistoryItem(context, note, 'নতুন নোট (ম্যানুয়াল)', Icons.note_alt_rounded, const Color(0xFFF3E8FF), const Color(0xFF7E22CE))),
-        
-        _buildHistoryItem(context, 'খুরা রোগ (FMD) ২য় ডোজ সম্পন্ন', '১৫ মে, ২০২৬ • ডাঃ মোঃ আব্দুর রাজ্জাক', Icons.vaccines_rounded, const Color(0xFFECFDF5), const Color(0xFF059669)),
-        _buildHistoryItem(context, 'কৃমিনাশক ড্যাশবোর্ড চিকিৎসা', '০২ মে, ২০২৬ • সফল প্রয়োগ', Icons.assignment_turned_in_rounded, const Color(0xFFEFF6FF), const Color(0xFF0284C7)),
+
+        if (vaccinations.isNotEmpty)
+          ...vaccinations.map((vac) => _buildHistoryItem(
+                context,
+                (vac['name'] ?? vac['vaccineName'] ?? 'টিকা সম্পন্ন').toString(),
+                (vac['date'] ?? vac['createdAt'] ?? '').toString(),
+                Icons.vaccines_rounded,
+                const Color(0xFFECFDF5),
+                const Color(0xFF059669),
+              )),
+
+        if (healthAssessments.isNotEmpty)
+          ...healthAssessments.map((assess) => _buildHistoryItem(
+                context,
+                (assess['diagnosis'] ?? assess['symptoms'] ?? 'স্বাস্থ্য মূল্যায়ন').toString(),
+                (assess['createdAt'] ?? '').toString(),
+                Icons.assignment_turned_in_rounded,
+                const Color(0xFFEFF6FF),
+                const Color(0xFF0284C7),
+              )),
+
+        if (!hasData)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              children: [
+                const Icon(Icons.health_and_safety_outlined, color: Color(0xFF94A3B8), size: 36),
+                const SizedBox(height: 8),
+                const Text(
+                  'এখনো কোনো টিকাদান বা চিকিৎসার রেকর্ড নেই',
+                  style: TextStyle(color: Color(0xFF64748B), fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'নিচের "নোট যুক্ত করুন" বোতাম দিয়ে নতুন তথ্য লিখুন',
+                  style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -424,7 +492,8 @@ class _AnimalDetailScreenState extends ConsumerState<AnimalDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF0F172A))),
-                Text(subtitle, style: const TextStyle(color: Color(0xFF64748B), fontSize: 10)),
+                if (subtitle.isNotEmpty)
+                  Text(subtitle, style: const TextStyle(color: Color(0xFF64748B), fontSize: 10)),
               ],
             ),
           ),

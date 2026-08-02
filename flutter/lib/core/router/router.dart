@@ -69,16 +69,6 @@ final router = GoRouter(
             GoRoute(
               path: '/animals',
               builder: (context, state) => const AnimalListScreen(),
-              routes: [
-                GoRoute(
-                  path: 'detail',
-                  builder: (context, state) => AnimalDetailScreen(animalData: state.extra as Map<String, dynamic>?),
-                ),
-                GoRoute(
-                  path: 'collar',
-                  builder: (context, state) => SmartCollarScreen(deviceCode: (state.extra as String?) ?? 'DEV-124'),
-                ),
-              ],
             ),
           ],
         ),
@@ -253,6 +243,21 @@ final router = GoRouter(
       path: '/animals/add',
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const AddCattleScreen(),
+    ),
+    GoRoute(
+      path: '/animals/detail',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => AnimalDetailScreen(animalData: state.extra as Map<String, dynamic>?),
+    ),
+    GoRoute(
+      path: '/animals/collar',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => SmartCollarScreen(deviceCode: (state.extra as String?) ?? 'DEV-124'),
+    ),
+    GoRoute(
+      path: '/smart-collar',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => SmartCollarScreen(deviceCode: (state.extra as String?) ?? 'DEV-124'),
     ),
   ],
 );
