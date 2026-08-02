@@ -515,6 +515,30 @@ class ApiClient {
             debugPrint('Error cross-referencing collars list: $e');
           }
 
+          // Fetch latest telemetry location record (speed, satellites, altitude, fixQuality)
+          double speed = 0.0;
+          double altitude = 0.0;
+          int satellites = 0;
+          String fixQuality = 'GPS';
+
+          try {
+            final locResponse = await http.get(
+              Uri.parse('$baseUrl/smart-collars/${data['id']}/locations/latest'),
+              headers: _headers,
+            ).timeout(const Duration(seconds: 5));
+            if (locResponse.statusCode == 200) {
+              final locData = jsonDecode(locResponse.body);
+              if (locData is Map<String, dynamic>) {
+                speed = (locData['speed'] as num?)?.toDouble() ?? 0.0;
+                altitude = (locData['altitude'] as num?)?.toDouble() ?? 0.0;
+                satellites = (locData['satellites'] as num?)?.toInt() ?? 0;
+                fixQuality = (locData['fixQuality'] ?? 'GPS').toString();
+              }
+            }
+          } catch (e) {
+            debugPrint('Error fetching location telemetry: $e');
+          }
+
           return {
             'id': data['id'],
             'deviceCode': data['deviceCode'],
@@ -525,9 +549,10 @@ class ApiClient {
             'batteryLevel': data['batteryLevel'] ?? 100,
             'isOnline': (data['isOnline'] == true) || listOnlineStatus,
             'updatedAt': data['updatedAt'],
-            'lastHeartRate': data['lastHeartRate'],
-            'lastBodyTemp': data['lastBodyTemp'],
-            'lastStepCount': data['lastStepCount'],
+            'speed': speed,
+            'altitude': altitude,
+            'satellites': satellites,
+            'fixQuality': fixQuality,
           };
         }
       }

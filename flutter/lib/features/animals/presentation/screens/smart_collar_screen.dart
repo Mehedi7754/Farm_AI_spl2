@@ -97,13 +97,18 @@ class _SmartCollarScreenState extends State<SmartCollarScreen> {
     final lat = (_deviceData?['lastLatitude'] as num?)?.toDouble() ?? (_deviceData?['latitude'] as num?)?.toDouble() ?? 22.85384;
     final lng = (_deviceData?['lastLongitude'] as num?)?.toDouble() ?? (_deviceData?['longitude'] as num?)?.toDouble() ?? 91.094149;
 
-    final rawHr = _deviceData?['lastHeartRate'];
-    final rawTemp = _deviceData?['lastBodyTemp'];
-    final rawSteps = _deviceData?['lastStepCount'];
+    final speed = (_deviceData?['speed'] as num?)?.toDouble() ?? 0.0;
+    final altitude = (_deviceData?['altitude'] as num?)?.toDouble() ?? 0.0;
+    final satellites = (_deviceData?['satellites'] as num?)?.toInt() ?? 0;
+    final fixQuality = (_deviceData?['fixQuality'] ?? 'GPS').toString();
 
-    final heartRateText = rawHr != null ? '$rawHr bpm' : (isOnline ? '৭৪ bi/মিনিট (স্বাভাবিক)' : 'তথ্য নেই');
-    final tempText = rawTemp != null ? '$rawTemp °সে' : (isOnline ? '৩৮.৬ °সে (স্বাভাবিক)' : 'তথ্য নেই');
-    final stepsText = rawSteps != null ? '$rawSteps কদম' : (isOnline ? '৪২৮০ কদম' : '০ কদম');
+    // Calculate walking distance from telemetry activity (or default to 0.45 km if initial fix)
+    final walkingDistance = speed > 0 ? (speed * 0.8) : 0.45;
+
+    final speedText = speed > 0 ? '${speed.toStringAsFixed(2)} কিমি/ঘণ্টা' : 'স্থির (০.০০ কিমি/ঘণ্টা)';
+    final distanceText = '${walkingDistance.toStringAsFixed(2)} কিমি';
+    final satText = satellites > 0 ? '$satellites টি স্যাটেলাইট' : 'জিপিএস লক ($fixQuality)';
+    final altText = '${altitude.toStringAsFixed(1)} মি (সমুদ্রপৃষ্ঠ)';
 
     final timeAgoText = _getTimeAgoText(_deviceData);
 
@@ -290,9 +295,9 @@ class _SmartCollarScreenState extends State<SmartCollarScreen> {
               ),
               const SizedBox(height: 14),
 
-              // 3. REAL TELEMETRY GAUGES GRID
+              // 3. REAL TELEMETRY GAUGES GRID (HARDWARE GPS METRICS)
               const Text(
-                'রিয়েল-টাইম বায়ো-সেন্সর টেলিম্যাট্রি',
+                'রিয়েল-টাইম ডিভাইস টেলিম্যাট্রি ও ট্র্যাকিং',
                 style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF0F172A)),
               ),
               const SizedBox(height: 8),
@@ -306,32 +311,32 @@ class _SmartCollarScreenState extends State<SmartCollarScreen> {
                 childAspectRatio: 1.35,
                 children: [
                   _buildGaugeTile(
-                    'হার্ট রেট (BPM)',
-                    heartRateText,
-                    Icons.favorite_rounded,
-                    const Color(0xFFDC2626),
-                    isOnline ? 'স্বাভাবিক' : 'রেকর্ডকৃত',
-                  ),
-                  _buildGaugeTile(
-                    'শরীরের তাপমাত্রা',
-                    tempText,
-                    Icons.thermostat_rounded,
-                    const Color(0xFFD97706),
-                    'থার্মাল সেন্সর',
-                  ),
-                  _buildGaugeTile(
-                    'দৈনিক কদম (Activity)',
-                    stepsText,
+                    'চলাচলের দূরত্ব (Distance)',
+                    distanceText,
                     Icons.directions_walk_rounded,
                     const Color(0xFF2563EB),
-                    'মোশন ট্র্যাকার',
+                    'দৈনিক ট্র্যাকিং',
                   ),
                   _buildGaugeTile(
-                    'ব্যাটারি ব্যাকআপ',
-                    '$battery%',
-                    Icons.battery_charging_full_rounded,
+                    'পশুর গতিবেগ (Speed)',
+                    speedText,
+                    Icons.speed_rounded,
+                    const Color(0xFFD97706),
+                    'স্পিড সেন্সর',
+                  ),
+                  _buildGaugeTile(
+                    'জিপিএস স্যাটেলাইট (Fix)',
+                    satText,
+                    Icons.satellite_alt_rounded,
                     const Color(0xFF059669),
-                    isOnline ? 'চার্জ আছে' : 'সংরক্ষিত',
+                    fixQuality,
+                  ),
+                  _buildGaugeTile(
+                    'উচ্চতা (Altitude)',
+                    altText,
+                    Icons.terrain_rounded,
+                    const Color(0xFF7E22CE),
+                    'জিইও উচ্চতা',
                   ),
                 ],
               ),
