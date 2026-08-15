@@ -894,6 +894,21 @@ class ApiClient {
     return data is List ? data : [];
   }
 
+  static Future<List<dynamic>> getUnreadChatSummary([String? customUserId]) async {
+    final userId = customUserId ?? _currentUser?['id'] ?? '';
+    if (userId.isEmpty) return [];
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/chat/unread/$userId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 10));
+      final data = _processResponse(response);
+      return data is List ? data : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
   // ── Push Notifications ────────────────────────────────────────────────────
   
   static Future<void> updateFcmToken(String token) async {

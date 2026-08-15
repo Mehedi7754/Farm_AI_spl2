@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/services/chat_notification_sync_service.dart';
+import '../../../../core/services/consultation_manager.dart';
 
 class VetDashboardScreen extends StatefulWidget {
   const VetDashboardScreen({super.key});
@@ -18,6 +20,7 @@ class _VetDashboardScreenState extends State<VetDashboardScreen> {
   void initState() {
     super.initState();
     _load();
+    ChatNotificationSyncService.syncUnreadMessages();
   }
 
   Future<void> _load() async {
@@ -25,9 +28,10 @@ class _VetDashboardScreenState extends State<VetDashboardScreen> {
       final user = ApiClient.currentUser;
       if (user == null) return;
       final data = await ApiClient.getMyConsultations(userId: user['id'] as String, role: 'VET');
+      final filtered = await ConsultationManager.filterConsultations(data);
       if (mounted) {
         setState(() {
-          _consultations = List<Map<String, dynamic>>.from(data);
+          _consultations = filtered;
           _isLoading = false;
         });
       }

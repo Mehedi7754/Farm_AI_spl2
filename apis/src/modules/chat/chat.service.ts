@@ -101,4 +101,33 @@ export class ChatService {
 
     return Array.from(conversations.values());
   }
+
+  async getUnreadSummary(userId: string) {
+    const messages = await this.prisma.chatMessage.findMany({
+      where: { receiverId: userId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        sender: true,
+      },
+      take: 50,
+    });
+
+    const senderMap = new Map<string, any>();
+    for (const msg of messages) {
+      if (!senderMap.has(msg.senderId)) {
+        senderMap.set(msg.senderId, {
+          senderId: msg.senderId,
+          senderName: msg.sender?.name || 'ব্যবহারকারী',
+          senderRole: msg.sender?.role,
+          lastMessage: msg.content,
+          createdAt: msg.createdAt,
+          count: 1,
+        });
+      } else {
+        senderMap.get(msg.senderId).count += 1;
+      }
+    }
+
+    return Array.from(senderMap.values());
+  }
 }

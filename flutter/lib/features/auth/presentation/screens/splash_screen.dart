@@ -7,6 +7,7 @@ import '../../../../core/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
 import '../providers/auth_provider.dart';
+import '../../../../core/services/chat_notification_sync_service.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -30,6 +31,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     if (mounted) {
       if (ApiClient.authToken != null && ApiClient.currentUser != null) {
         ref.read(authProvider.notifier).initAuth();
+        ChatNotificationSyncService.syncUnreadMessages();
         final role = (ApiClient.currentUser?['role'] ?? 'FARMER').toString().toUpperCase();
         context.go(role == 'VET' ? '/vet-dashboard' : '/home');
       } else {

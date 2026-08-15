@@ -9,6 +9,7 @@ import '../../../utilities/presentation/providers/weather_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../animals/presentation/providers/livestock_provider.dart';
 import '../../../utilities/presentation/providers/financial_provider.dart';
+import '../../../../core/services/chat_notification_sync_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -27,6 +28,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.initState();
     _pageController = PageController(viewportFraction: 0.94);
     _startAutoScroll();
+    ChatNotificationSyncService.syncUnreadMessages();
   }
 
   void _startAutoScroll() {

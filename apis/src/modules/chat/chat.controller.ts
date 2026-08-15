@@ -26,4 +26,9 @@ export class ChatController {
   async getChatList(@Query('userId') userId: string) {
     return this.chatService.getChatList(userId);
   }
+
+  @Get('unread/:userId')
+  async getUnreadSummary(@Param('userId') userId: string) {
+    return this.chatService.getUnreadSummary(userId);
+  }
 }

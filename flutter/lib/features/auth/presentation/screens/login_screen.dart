@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/l10n/strings_bn.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_background.dart';
+import '../../../../core/services/chat_notification_sync_service.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -45,6 +46,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         final user = ref.read(authProvider).user;
         final serverRole = (user?['role'] ?? '').toString().toUpperCase();
         final targetRole = serverRole.isNotEmpty ? serverRole : _selectedRole;
+        
+        ChatNotificationSyncService.syncUnreadMessages(user?['id']?.toString());
         
         context.go(targetRole == 'VET' ? '/vet-dashboard' : '/home');
       } else {

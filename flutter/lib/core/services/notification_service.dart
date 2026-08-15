@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'notification_store.dart';
+import '../router/router.dart';
 
 /// Centralized notification service for Farm AI.
 /// Handles:
@@ -124,7 +125,16 @@ class NotificationService {
   }
 
   void _onNotificationTap(NotificationResponse response) {
-    debugPrint('[NotificationService] Tapped: ${response.payload}');
+    final payload = response.payload;
+    debugPrint('[NotificationService] Tapped: $payload');
+    if (payload != null && payload.startsWith('NEW_CHAT_MESSAGE')) {
+      final parts = payload.split('|');
+      if (parts.length >= 3) {
+        final senderId = parts[1];
+        final senderName = parts[2];
+        router.push('/chat/$senderId?name=${Uri.encodeComponent(senderName)}');
+      }
+    }
   }
 
   // ── Weather Notifications ─────────────────────────────────────────────────
