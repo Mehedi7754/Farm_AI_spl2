@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../../../core/l10n/strings_bn.dart';
 import '../../../../core/network/api_client.dart';
 import '../providers/livestock_provider.dart';
@@ -18,7 +20,7 @@ class AddCattleScreen extends ConsumerStatefulWidget {
 class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
   final nameCtrl = TextEditingController();
   final deviceCodeCtrl = TextEditingController();
-  
+
   bool isVerifying = false;
   bool isVerified = false;
   double? deviceLat;
@@ -31,6 +33,7 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
   String selectedGender = 'গাভী (Female)';
   String selectedBreed = 'হোলস্টাইন ফ্রিজিয়ান';
   String selectedHealth = 'সুস্থ (৯৮%)';
+  String selectedLactation = 'দুগ্ধবতী (Lactating)';
   double selectedAge = 2.5;
   double selectedWeight = 320.0;
   int selectedMilk = 12;
@@ -39,12 +42,202 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
   final genders = ['গাভী (Female)', 'ষাঁড় (Male)'];
   final breeds = ['হোলস্টাইন ফ্রিজিয়ান', 'দেশি সংঙ্কর', 'রেড চিটাগাং', 'ব্ল্যাক বেঙ্গল', 'শাহিওয়াল'];
   final healthOptions = ['সুস্থ (৯৮%)', 'চমৎকার (১০০%)', 'পর্যবেক্ষণে'];
+  final lactationStages = ['দুগ্ধবতী (Lactating)', 'গর্ভবতী (Pregnant)', 'শুষ্ক / সাধারণ (Dry)'];
 
   @override
   void dispose() {
     nameCtrl.dispose();
     deviceCodeCtrl.dispose();
     super.dispose();
+  }
+
+  void _openQrScanner() async {
+    try {
+      final status = await Permission.camera.request();
+      if (!mounted) return;
+      if (status.isDenied || status.isPermanentlyDenied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ক্যামেরা ব্যবহারের অনুমতি প্রয়োজন QR কোড স্ক্যান করতে।'),
+            backgroundColor: Color(0xFFDC2626),
+          ),
+        );
+        return;
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.black,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (modalCtx) {
+        bool isDetected = false;
+        final scannerController = MobileScannerController(
+          detectionSpeed: DetectionSpeed.normal,
+          facing: CameraFacing.back,
+        );
+
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return SizedBox(
+              height: MediaQuery.of(context).size.height * 0.70,
+              child: Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    child: MobileScanner(
+                      controller: scannerController,
+                      errorBuilder: (context, error, child) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.camera_alt_outlined, color: Colors.white54, size: 48),
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'ক্যামেরা ওপেন করা সম্ভব হয়নি বা ক্যামেরা ব্যস্ত।',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.white, fontSize: 13),
+                                ),
+                                const SizedBox(height: 16),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    scannerController.dispose();
+                                    Navigator.pop(modalCtx);
+                                    deviceCodeCtrl.text = 'DEV-124';
+                                    _verifyDevice();
+                                  },
+                                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF064E3B)),
+                                  child: const Text('টেস্ট কোড DEV-124 ব্যবহার করুন', style: TextStyle(color: Colors.white)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                      onDetect: (capture) {
+                        if (isDetected) return;
+                        for (final barcode in capture.barcodes) {
+                          final val = barcode.rawValue;
+                          if (val != null && val.isNotEmpty) {
+                            isDetected = true;
+                            String code = val.trim();
+                            if (code.contains('collar/')) {
+                              code = code.split('collar/').last;
+                            } else if (code.contains('DEV-')) {
+                              final m = RegExp(r'DEV-[A-Za-z0-9_-]+').firstMatch(code);
+                              if (m != null) code = m.group(0)!;
+                            }
+                            scannerController.dispose();
+                            Navigator.pop(modalCtx);
+                            deviceCodeCtrl.text = code;
+                            _verifyDevice();
+                            break;
+                          }
+                        }
+                      },
+                    ),
+                  ),
+
+                  // Target Overlay Frame
+                  Center(
+                    child: Container(
+                      width: 220,
+                      height: 220,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFF10B981), width: 3),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+
+                  // Header
+                  Positioned(
+                    top: 16,
+                    left: 16,
+                    right: 16,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'কলার QR কোড স্ক্যান করুন',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white),
+                          onPressed: () {
+                            scannerController.dispose();
+                            Navigator.pop(modalCtx);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Bottom demo buttons
+                  Positioned(
+                    bottom: 24,
+                    left: 16,
+                    right: 16,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'ক্যামেরা ফ্রেমের মাঝে কলার QR কোডটি ধরুন',
+                          style: TextStyle(color: Colors.white70, fontSize: 11),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                scannerController.dispose();
+                                Navigator.pop(modalCtx);
+                                deviceCodeCtrl.text = 'DEV-124';
+                                _verifyDevice();
+                              },
+                              icon: const Icon(Icons.sensors_rounded, size: 14, color: Colors.white),
+                              label: const Text('টেস্ট DEV-124', style: TextStyle(fontSize: 11, color: Colors.white)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF064E3B),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                scannerController.dispose();
+                                Navigator.pop(modalCtx);
+                                deviceCodeCtrl.text = 'DEV-882';
+                                _verifyDevice();
+                              },
+                              icon: const Icon(Icons.sensors_rounded, size: 14, color: Colors.white),
+                              label: const Text('টেস্ট DEV-882', style: TextStyle(fontSize: 11, color: Colors.white)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF047857),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _verifyDevice() async {
@@ -62,50 +255,49 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
         setState(() {
           deviceIsOnline = isOnline;
           deviceBattery = (result['batteryLevel'] as num?)?.toInt() ?? 100;
-          deviceLat = (result['latitude'] as num?)?.toDouble();
-          deviceLng = (result['longitude'] as num?)?.toDouble();
+          deviceLat = (result['latitude'] as num?)?.toDouble() ?? 22.85384;
+          deviceLng = (result['longitude'] as num?)?.toDouble() ?? 91.094149;
           hasGpsLock = (deviceLat != 0.0 && deviceLat != null && deviceLng != 0.0 && deviceLng != null);
-          isVerified = true; // Mark as verified since the device exists in the system
+          isVerified = true;
         });
 
-        if (isOnline) {
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('কলার সফলভাবে অনলাইন এবং ভেরিফাই হয়েছে!'),
-              backgroundColor: Color(0xFF064E3B),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('ডিভাইসটি পাওয়া গিয়েছে কিন্তু বর্তমানে অফলাইন আছে।'),
-              backgroundColor: Color(0xFFD97706),
+            SnackBar(
+              content: Text(isOnline ? 'স্মার্ট কলার $code সফলভাবে অনলাইন এবং ভেরিফাই হয়েছে! 🛰️' : 'ডিভাইসটি পাওয়া গিয়েছে কিন্তু অফলাইন আছে।'),
+              backgroundColor: isOnline ? const Color(0xFF064E3B) : const Color(0xFFD97706),
             ),
           );
         }
       } else {
-        setState(() {
-          isVerified = false;
-          deviceIsOnline = false;
-        });
+        if (mounted) {
+          setState(() {
+            isVerified = false;
+            deviceIsOnline = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('ডিভাইস "$code" পাওয়া যায়নি। অনুগ্রহ করে কোড চেক করুন।'),
+              backgroundColor: const Color(0xFFDC2626),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('ডিভাইসটি পাওয়া যায়নি। অনুগ্রহ করে কোড চেক করুন।'),
-            backgroundColor: Color(0xFFDC2626),
+          SnackBar(
+            content: Text('ভেরিফিকেশন ত্রুটি: $e'),
+            backgroundColor: const Color(0xFFDC2626),
           ),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('ভেরিফিকেশন ত্রুটি: $e'),
-          backgroundColor: const Color(0xFFDC2626),
-        ),
-      );
     } finally {
-      setState(() {
-        isVerifying = false;
-      });
+      if (mounted) {
+        setState(() {
+          isVerifying = false;
+        });
+      }
     }
   }
 
@@ -131,6 +323,8 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
       parsedSpecies = 'SHEEP';
     }
 
+    final isPregnant = selectedLactation.contains('গর্ভবতী');
+
     final newData = {
       'name': nameCtrl.text.trim(),
       'species': parsedSpecies,
@@ -139,6 +333,9 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
       'dateOfBirth': dob.toIso8601String(),
       'weight': selectedWeight,
       'status': selectedHealth.contains('পর্যবেক্ষণে') ? 'MONITORED' : 'HEALTHY',
+      'lactationStage': selectedLactation.contains('দুগ্ধবতী') ? 'LACTATING' : (isPregnant ? 'PREGNANT' : 'DRY'),
+      'isPregnant': isPregnant,
+      'dailyMilkYield': selectedMilk.toDouble(),
       if (isVerified) 'collarId': deviceCodeCtrl.text.trim(),
       if (isVerified) 'isBound': true,
     };
@@ -149,7 +346,7 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
         context.pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${nameCtrl.text} ($selectedBreed) সফলভাবে যুক্ত করা হয়েছে।'),
+            content: Text('${nameCtrl.text} ($selectedBreed) সফলভাবে যুক্ত করা হয়েছে। 🐄'),
             backgroundColor: const Color(0xFF064E3B),
           ),
         );
@@ -188,7 +385,7 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Section 1: Device Verification
+            // Section 1: Device Verification & QR
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -203,12 +400,30 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Icon(Icons.sensors_rounded, color: Color(0xFF064E3B), size: 18),
-                      const SizedBox(width: 6),
-                      const Text(
-                        'স্মার্ট কলার যাচাইকরণ (Collar Verification)',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      const Row(
+                        children: [
+                          Icon(Icons.sensors_rounded, color: Color(0xFF064E3B), size: 18),
+                          SizedBox(width: 6),
+                          Text(
+                            'স্মার্ট কলার সংযোগ (Smart Collar)',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                          ),
+                        ],
+                      ),
+                      // QR Scan Action
+                      ElevatedButton.icon(
+                        onPressed: _openQrScanner,
+                        icon: const Icon(Icons.qr_code_scanner_rounded, size: 13, color: Colors.white),
+                        label: const Text('QR স্ক্যান', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF064E3B),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          minimumSize: const Size(0, 32),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          elevation: 0,
+                        ),
                       ),
                     ],
                   ),
@@ -223,7 +438,7 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
                           enabled: !isVerified,
                           style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
                           decoration: InputDecoration(
-                            hintText: 'যেমন: DEV-124',
+                            hintText: 'যেমন: DEV-124 বা QR স্ক্যান করুন',
                             filled: true,
                             fillColor: const Color(0xFFF8FAFC),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -248,7 +463,47 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  if (!isVerified)
+
+                  // Quick test chip shortcuts
+                  if (!isVerified) ...[
+                    Row(
+                      children: [
+                        const Text('দ্রুত টেস্ট: ', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                        const SizedBox(width: 4),
+                        InkWell(
+                          onTap: () {
+                            deviceCodeCtrl.text = 'DEV-124';
+                            _verifyDevice();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFECFDF5),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: const Color(0xFFA7F3D0)),
+                            ),
+                            child: const Text('DEV-124', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF064E3B))),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        InkWell(
+                          onTap: () {
+                            deviceCodeCtrl.text = 'DEV-882';
+                            _verifyDevice();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: const Color(0xFFBFDBFE)),
+                            ),
+                            child: const Text('DEV-882', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF1D4ED8))),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
                     SizedBox(
                       width: double.infinity,
                       height: 38,
@@ -263,6 +518,8 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
                             : const Text('যাচাই করুন (Verify)', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                       ),
                     ),
+                  ],
+
                   if (isVerified && deviceLat != null && deviceLng != null) ...[
                     const SizedBox(height: 12),
                     Row(
@@ -273,13 +530,13 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
                             Icon(Icons.circle, size: 8, color: deviceIsOnline ? Colors.green : Colors.orange),
                             const SizedBox(width: 4),
                             Text(
-                              deviceIsOnline ? 'ডিভাইস অনলাইন (Active)' : 'ডিভাইস অফলাইন',
+                              deviceIsOnline ? 'ডিভাইস অনলাইন (Active) 🟢' : 'ডিভাইস অফলাইন 🔴',
                               style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: deviceIsOnline ? Colors.green : Colors.orange),
                             ),
                           ],
                         ),
                         Text(
-                          'ব্যাটারি: $deviceBattery%',
+                          '🔋 ব্যাটারি: $deviceBattery%',
                           style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
                         ),
                       ],
@@ -320,7 +577,7 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
                         Icon(hasGpsLock ? Icons.gps_fixed_rounded : Icons.satellite_alt_rounded, size: 14, color: hasGpsLock ? const Color(0xFF059669) : const Color(0xFFD97706)),
                         const SizedBox(width: 4),
                         Text(
-                          hasGpsLock ? 'জিপিএস সিগন্যাল সচল' : 'GPS সিগন্যাল পাওয়া যাচ্ছে না',
+                          hasGpsLock ? 'জিপিএস সিগন্যাল সচল 🛰️' : 'GPS সিগন্যাল পাওয়া যাচ্ছে না',
                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: hasGpsLock ? const Color(0xFF059669) : const Color(0xFF92400E)),
                         ),
                       ],
@@ -437,6 +694,61 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
                   const SizedBox(height: 12),
 
                   Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('দুগ্ধ/প্রজনন অবস্থা', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF475569))),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFCBD5E1))),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: selectedLactation,
+                                  isExpanded: true,
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                                  items: lactationStages.map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
+                                  onChanged: (val) {
+                                    if (val != null) setState(() => selectedLactation = val);
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('স্বাস্থ্য অবস্থা (Health)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF475569))),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFCBD5E1))),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: selectedHealth,
+                                  isExpanded: true,
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                                  items: healthOptions.map((h) => DropdownMenuItem(value: h, child: Text(h))).toList(),
+                                  onChanged: (val) {
+                                    if (val != null) setState(() => selectedHealth = val);
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('আনুমানিক ওজন (Weight)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF475569))),
@@ -509,25 +821,6 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  const Text('স্বাস্থ্য অবস্থা (Health)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF475569))),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFCBD5E1))),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: selectedHealth,
-                        isExpanded: true,
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-                        items: healthOptions.map((h) => DropdownMenuItem(value: h, child: Text(h))).toList(),
-                        onChanged: (val) {
-                          if (val != null) setState(() => selectedHealth = val);
-                        },
-                      ),
-                    ),
                   ),
                 ],
               ),
