@@ -18,8 +18,7 @@ export class SmartCollarsService {
   private checkIsOnline(updatedAt: Date | null): boolean {
     if (!updatedAt) return false;
     const diffSeconds = (Date.now() - new Date(updatedAt).getTime()) / 1000;
-    // Consider device online ONLY IF it sent a telemetry/location ping within the last 120 seconds (2 mins)
-    return diffSeconds <= 120;
+    return diffSeconds <= 900; // Online if updated in past 15 minutes
   }
 
   private formatTimeAgo(date: Date | null): string {
@@ -39,17 +38,69 @@ export class SmartCollarsService {
     if (!collar) return null;
     const isOnline = this.checkIsOnline(collar.updatedAt);
     const lastActiveAgo = this.formatTimeAgo(collar.updatedAt);
+
+    // Only use location records that were recorded within the last 24 hours
+    // (filters out any seeded/fake future-dated records)
+    const now = Date.now();
+    const realLocations = (collar.locations || []).filter((l: any) => {
+      const recorded = new Date(l.recordedAt).getTime();
+      return recorded <= now && (now - recorded) < 86400_000; // max 24h old
+    });
+    const latestLoc = realLocations[0] ?? null;
+
     return {
-      ...collar,
+      id: collar.id,
+      livestockId: collar.livestockId,
+      deviceCode: collar.deviceCode,
+      pairingPin: collar.pairingPin,
+      firmwareVersion: collar.firmwareVersion,
+      batteryLevel: collar.batteryLevel ?? null,
       isOnline,
+      isSolarCharging: collar.isSolarCharging,
+      isBuzzerActive: collar.isBuzzerActive,
+      isLedActive: collar.isLedActive,
+      signalStrength: collar.signalStrength ?? null,
+      // Biometric fields — null if device hasn't pushed real data
+      lastHeartRate: null,
+      lastBodyTemp: null,
+      lastStepCount: null,
+      // GPS position — only from real device pushes
+      lastLatitude: collar.lastLatitude ?? null,
+      lastLongitude: collar.lastLongitude ?? null,
+      geofenceRadius: collar.geofenceRadius ?? 150,
+      safeZoneLat: collar.safeZoneLat ?? null,
+      safeZoneLng: collar.safeZoneLng ?? null,
+      createdAt: collar.createdAt,
+      updatedAt: collar.updatedAt,
       lastActive: collar.updatedAt ? new Date(collar.updatedAt).toISOString() : null,
       lastActiveAgo,
+      livestock: collar.livestock ?? null,
+      // GPS telemetry — strictly from real device location pushes only
+      speed: latestLoc?.speed ?? null,
+      altitude: latestLoc?.altitude ?? null,
+      satellites: latestLoc?.satellites ?? null,
+      fixQuality: latestLoc?.fixQuality ?? null,
+      course: latestLoc?.course ?? null,
+      // GPS breadcrumb trail — only real records
+      trail: realLocations.map((l: any) => ({
+        latitude: l.latitude,
+        longitude: l.longitude,
+        speed: l.speed ?? null,
+        altitude: l.altitude ?? null,
+        recordedAt: l.recordedAt,
+      })),
     };
   }
 
   async findAll() {
     const collars = await this.prisma.smartCollar.findMany({
-      include: { livestock: true },
+      include: {
+        livestock: true,
+        locations: {
+          orderBy: { recordedAt: 'desc' },
+          take: 15,
+        },
+      },
     });
     return collars.map((c) => this.formatCollarResponse(c));
   }
@@ -57,7 +108,13 @@ export class SmartCollarsService {
   async findOne(id: string) {
     const collar = await this.prisma.smartCollar.findUnique({
       where: { id },
-      include: { livestock: true },
+      include: {
+        livestock: true,
+        locations: {
+          orderBy: { recordedAt: 'desc' },
+          take: 20,
+        },
+      },
     });
 
     if (!collar) throw new NotFoundException(`Smart Collar with ID ${id} not found`);
@@ -67,7 +124,13 @@ export class SmartCollarsService {
   async findByLivestock(livestockId: string) {
     const collar = await this.prisma.smartCollar.findUnique({
       where: { livestockId },
-      include: { livestock: true },
+      include: {
+        livestock: true,
+        locations: {
+          orderBy: { recordedAt: 'desc' },
+          take: 20,
+        },
+      },
     });
 
     if (!collar) throw new NotFoundException(`Smart Collar for Livestock ${livestockId} not found`);
@@ -77,7 +140,13 @@ export class SmartCollarsService {
   async findByDeviceCode(deviceCode: string) {
     const collar = await this.prisma.smartCollar.findUnique({
       where: { deviceCode },
-      include: { livestock: true },
+      include: {
+        livestock: true,
+        locations: {
+          orderBy: { recordedAt: 'desc' },
+          take: 20,
+        },
+      },
     });
 
     if (!collar) throw new NotFoundException(`Smart Collar with device code ${deviceCode} not found`);
@@ -104,10 +173,11 @@ export class SmartCollarsService {
   }
 
   async triggerLedAlert(id: string, color: string = 'RED') {
-    const collar = await this.findOne(id);
+    const rawCollar = await this.prisma.smartCollar.findUnique({ where: { id } });
+    if (!rawCollar) throw new NotFoundException(`Smart Collar with ID ${id} not found`);
     return {
       success: true,
-      deviceId: collar.deviceCode,
+      deviceId: rawCollar.deviceCode,
       action: 'LED_ALERT_TRIGGERED',
       color,
       timestamp: new Date().toISOString(),
@@ -122,14 +192,18 @@ export class SmartCollarsService {
    * and updates the collar's lastLatitude/lastLongitude.
    */
   async createLocation(dto: CreateCollarLocationDto) {
-    const collar = await this.findByDeviceCode(dto.deviceCode);
+    // Use direct DB lookup (not formatted response) to avoid null type issues
+    const rawCollar = await this.prisma.smartCollar.findUnique({
+      where: { deviceCode: dto.deviceCode },
+    });
+    if (!rawCollar) throw new NotFoundException(`Smart Collar with device code ${dto.deviceCode} not found`);
 
     // Parse date/time from ESP32 GPS format (DD/MM/YYYY + HH:MM:SS)
     let recordedAt = new Date();
     if (dto.date && dto.time) {
       const [day, month, year] = dto.date.split('/');
       const [hours, minutes, seconds] = dto.time.split(':');
-      recordedAt = new Date(
+      const parsed = new Date(
         Date.UTC(
           parseInt(year),
           parseInt(month) - 1,
@@ -139,12 +213,16 @@ export class SmartCollarsService {
           parseInt(seconds),
         ),
       );
+      // Sanity check: reject future-dated GPS timestamps (ESP32 parse errors)
+      if (parsed.getTime() <= Date.now()) {
+        recordedAt = parsed;
+      }
     }
 
     // Store location entry in history
     const location = await this.prisma.collarLocation.create({
       data: {
-        collarId: collar.id,
+        collarId: rawCollar.id,
         latitude: dto.latitude,
         longitude: dto.longitude,
         altitude: dto.altitude,
@@ -158,7 +236,7 @@ export class SmartCollarsService {
 
     // Update collar with latest position + mark online
     await this.prisma.smartCollar.update({
-      where: { id: collar.id },
+      where: { id: rawCollar.id },
       data: {
         lastLatitude: dto.latitude,
         lastLongitude: dto.longitude,
@@ -169,8 +247,8 @@ export class SmartCollarsService {
     return {
       success: true,
       locationId: location.id,
-      collarId: collar.id,
-      deviceCode: collar.deviceCode,
+      collarId: rawCollar.id,
+      deviceCode: rawCollar.deviceCode,
       latitude: dto.latitude,
       longitude: dto.longitude,
       recordedAt: recordedAt.toISOString(),
