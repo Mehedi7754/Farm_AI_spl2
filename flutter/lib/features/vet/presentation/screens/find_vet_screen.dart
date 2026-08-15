@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/utils/time_utils.dart';
 
+import '../../../../core/services/consultation_manager.dart';
+
 class FindVetScreen extends StatefulWidget {
   const FindVetScreen({super.key});
 
@@ -44,19 +46,16 @@ class _FindVetScreenState extends State<FindVetScreen> {
     }
   }
 
-  static final Set<String> _deletedBookingIds = {};
-
   Future<void> _loadMyBookings() async {
     setState(() => _isLoadingBookings = true);
     try {
       final user = ApiClient.currentUser;
       if (user != null) {
         final data = await ApiClient.getMyConsultations(userId: user['id'] as String, role: 'FARMER');
+        final filtered = await ConsultationManager.filterConsultations(data);
         if (mounted) {
           setState(() {
-            _myBookings = List<Map<String, dynamic>>.from(data)
-                .where((b) => !_deletedBookingIds.contains(b['id']))
-                .toList();
+            _myBookings = filtered;
             _isLoadingBookings = false;
           });
         }
@@ -492,33 +491,11 @@ class _BookingCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   InkWell(
-                    onTap: () async {
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('রেকর্ড মুছে ফেলবেন?'),
-                          content: const Text('আপনি কি নিশ্চিত যে এই অ্যাপয়েন্টমেন্টটি তালিকা থেকে স্থায়ীভাবে মুছে ফেলতে চান?'),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('না')),
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
-                              child: const Text('মুছে ফেলুন'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (confirm == true) {
-                        _FindVetScreenState._deletedBookingIds.add(booking['id']);
-                        onRefresh();
-                        await ApiClient.deleteConsultation(booking['id']);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('অ্যাপয়েন্টমেন্ট মুছে ফেলা হয়েছে')),
-                          );
-                        }
-                      }
-                    },
+                    onTap: () => ConsultationManager.deleteConsultation(
+                      context: context,
+                      consultationId: booking['id']?.toString() ?? '',
+                      onOptimisticUpdate: onRefresh,
+                    ),
                     borderRadius: BorderRadius.circular(20),
                     child: Padding(
                       padding: const EdgeInsets.all(4),
@@ -568,39 +545,41 @@ class _BookingCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              if (status == 'CONFIRMED' && booking['roomId'] != null) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SizedBox(
+                    height: 38,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        final roomId = booking['roomId'];
+                        context.push('/video-call/$roomId?targetName=${Uri.encodeComponent('Dr. $name')}');
+                      },
+                      icon: const Icon(Icons.videocam_rounded, size: 16),
+                      label: const Text('ভিডিও কল', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(width: 8),
               if (status == 'PENDING' || status == 'CONFIRMED') ...[
                 Expanded(
                   child: SizedBox(
                     height: 38,
                     child: OutlinedButton.icon(
-                      onPressed: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('অ্যাপয়েন্টমেন্ট বাতিল করবেন?'),
-                            content: const Text('আপনি কি নিশ্চিত যে এই অ্যাপয়েন্টমেন্টটি বাতিল করতে চান?'),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('না')),
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
-                                child: const Text('হ্যাঁ, বাতিল করুন'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirm == true) {
-                          final currentUserId = ApiClient.currentUser?['id'];
-                          await ApiClient.cancelConsultation(booking['id'], cancelledBy: currentUserId);
+                      onPressed: () => ConsultationManager.cancelConsultation(
+                        context: context,
+                        consultationId: booking['id']?.toString() ?? '',
+                        onOptimisticUpdate: () {
+                          booking['status'] = 'CANCELLED';
                           onRefresh();
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('অ্যাপয়েন্টমেন্ট বাতিল করা হয়েছে')),
-                            );
-                          }
-                        }
-                      },
+                        },
+                      ),
                       icon: const Icon(Icons.cancel_outlined, size: 16, color: Color(0xFFDC2626)),
                       label: const Text('বাতিল করুন', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFDC2626))),
                       style: OutlinedButton.styleFrom(
@@ -615,33 +594,11 @@ class _BookingCard extends StatelessWidget {
                   child: SizedBox(
                     height: 38,
                     child: OutlinedButton.icon(
-                      onPressed: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('রেকর্ড মুছে ফেলবেন?'),
-                            content: const Text('আপনি কি নিশ্চিত যে এই রেকর্ডটি তালিকা থেকে স্থায়ীভাবে মুছে ফেলতে চান?'),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('না')),
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
-                                child: const Text('মুছে ফেলুন'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirm == true) {
-                          _FindVetScreenState._deletedBookingIds.add(booking['id']);
-                          onRefresh();
-                          await ApiClient.deleteConsultation(booking['id']);
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('রেকর্ড মুছে ফেলা হয়েছে')),
-                            );
-                          }
-                        }
-                      },
+                      onPressed: () => ConsultationManager.deleteConsultation(
+                        context: context,
+                        consultationId: booking['id']?.toString() ?? '',
+                        onOptimisticUpdate: onRefresh,
+                      ),
                       icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Color(0xFF64748B)),
                       label: const Text('মুছে ফেলুন', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
                       style: OutlinedButton.styleFrom(

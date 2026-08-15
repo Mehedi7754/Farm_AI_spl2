@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import '../../../../core/network/api_client.dart';
+import '../../../../core/services/consultation_manager.dart';
 
 class VetAppointmentsScreen extends StatefulWidget {
   const VetAppointmentsScreen({super.key});
@@ -21,19 +22,16 @@ class _VetAppointmentsScreenState extends State<VetAppointmentsScreen> {
     _load();
   }
 
-  static final Set<String> _deletedConsultationIds = {};
-
   Future<void> _load() async {
     setState(() => _isLoading = true);
     try {
       final user = ApiClient.currentUser;
       if (user != null) {
         final data = await ApiClient.getMyConsultations(userId: user['id'], role: 'VET');
+        final filtered = await ConsultationManager.filterConsultations(data);
         if (mounted) {
           setState(() {
-            _consultations = List<Map<String, dynamic>>.from(data)
-                .where((c) => !_deletedConsultationIds.contains(c['id']))
-                .toList();
+            _consultations = filtered;
             _isLoading = false;
           });
         }
@@ -277,33 +275,11 @@ class _AppointmentCardState extends State<_AppointmentCard> {
                   ),
                   const SizedBox(width: 6),
                   InkWell(
-                    onTap: () async {
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('রেকর্ড মুছে ফেলবেন?'),
-                          content: const Text('আপনি কি নিশ্চিত যে এই অ্যাপয়েন্টমেন্ট রেকর্ডটি তালিকা থেকে স্থায়ীভাবে মুছে ফেলতে চান?'),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('না')),
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
-                              child: const Text('মুছে ফেলুন'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (confirm == true) {
-                        _VetAppointmentsScreenState._deletedConsultationIds.add(consultation['id']);
-                        widget.onRefresh();
-                        await ApiClient.deleteConsultation(consultation['id']);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('রেকর্ড মুছে ফেলা হয়েছে')),
-                          );
-                        }
-                      }
-                    },
+                    onTap: () => ConsultationManager.deleteConsultation(
+                      context: context,
+                      consultationId: consultation['id']?.toString() ?? '',
+                      onOptimisticUpdate: widget.onRefresh,
+                    ),
                     borderRadius: BorderRadius.circular(20),
                     child: Padding(
                       padding: const EdgeInsets.all(4),
@@ -397,68 +373,28 @@ class _AppointmentCardState extends State<_AppointmentCard> {
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  onPressed: () async {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('অ্যাপয়েন্টমেন্ট বাতিল করবেন?'),
-                        content: const Text('আপনি কি নিশ্চিত যে এই অ্যাপয়েন্টমেন্টটি বাতিল করতে চান? খামারিকে নোটিফিকেশন পাঠানো হবে।'),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('না')),
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
-                            child: const Text('হ্যাঁ, বাতিল করুন'),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (confirm == true) {
-                      final currentUserId = ApiClient.currentUser?['id'];
-                      await ApiClient.cancelConsultation(consultation['id'], cancelledBy: currentUserId);
+                  onPressed: () => ConsultationManager.cancelConsultation(
+                    context: context,
+                    consultationId: consultation['id']?.toString() ?? '',
+                    onOptimisticUpdate: () {
+                      consultation['status'] = 'CANCELLED';
                       widget.onRefresh();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('অ্যাপয়েন্টমেন্ট বাতিল করা হয়েছে')),
-                        );
-                      }
-                    }
-                  },
+                    },
+                  ),
                   icon: const Icon(Icons.cancel_outlined, color: Color(0xFFDC2626)),
                   tooltip: 'বাতিল করুন',
                 ),
               ],
-              if (status == 'CANCELLED' || status == 'COMPLETED') ...[
+              if (status == 'CANCELLED' || status == 'COMPLETED' || status == 'REJECTED') ...[
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('রেকর্ড মুছে ফেলবেন?'),
-                          content: const Text('আপনি কি নিশ্চিত যে এই অ্যাপয়েন্টমেন্ট রেকর্ডটি তালিকা থেকে মুছে ফেলতে চান?'),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('না')),
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
-                              child: const Text('মুছে ফেলুন'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (confirm == true) {
-                        await ApiClient.deleteConsultation(consultation['id']);
-                        widget.onRefresh();
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('রেকর্ড মুছে ফেলা হয়েছে')),
-                          );
-                        }
-                      }
-                    },
+                    onPressed: () => ConsultationManager.deleteConsultation(
+                      context: context,
+                      consultationId: consultation['id']?.toString() ?? '',
+                      onOptimisticUpdate: widget.onRefresh,
+                    ),
                     icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Color(0xFF64748B)),
-                    label: const Text('মুছে ফেলুন', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                    label: const Text('রেকর্ড মুছে ফেলুন', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: Color(0xFFCBD5E1)),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
