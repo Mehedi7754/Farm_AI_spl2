@@ -163,8 +163,8 @@ model Livestock {
 
 model SmartCollar {
   id            String    @id @default(uuid())
-  livestockId   String    @unique
-  livestock     Livestock @relation(fields: [livestockId], references: [id], onDelete: Cascade)
+  livestockId   String?   @unique
+  livestock     Livestock? @relation(fields: [livestockId], references: [id], onDelete: SetNull)
   deviceCode    String    @unique
   batteryLevel  Int       @default(100)
   isOnline      Boolean   @default(true)
@@ -232,7 +232,7 @@ model TeleConsultation {
   vetId         String
   vet           User               @relation("VetConsultations", fields: [vetId], references: [id], onDelete: Cascade)
   slotId        String?            @unique
-  slot          AppointmentSlot?   @relation(fields: [slotId], references: [id])
+  slot          AppointmentSlot?   @relation(fields: [slotId], references: [id], onDelete: SetNull)
   status        ConsultationStatus @default(PENDING)
   scheduledTime DateTime
   prescription  String?

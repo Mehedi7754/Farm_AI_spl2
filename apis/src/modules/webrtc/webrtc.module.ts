@@ -5,5 +5,6 @@ import { PrismaService } from '../../database/prisma.service';
 
 @Module({
   providers: [WebrtcGateway, FcmService, PrismaService],
+  exports: [FcmService],
 })
 export class WebrtcModule {}

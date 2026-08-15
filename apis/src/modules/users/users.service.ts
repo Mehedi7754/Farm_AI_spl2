@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CreateUserDto, LoginUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -9,6 +9,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'farm_ai_jwt_secret_key_2026_super_
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(private prisma: PrismaService) {}
 
   async register(dto: CreateUserDto) {
@@ -27,16 +29,39 @@ export class UsersService {
     const hashedPassword = await bcrypt.hash(dto.password, 10);
     const phone = dto.phoneNumber || `017${Math.floor(10000000 + Math.random() * 90000000)}`;
 
+    const userRole = (dto.role as any) || 'FARMER';
     const user = await this.prisma.user.create({
       data: {
         name: dto.name,
         email: dto.email,
         password: hashedPassword,
         phoneNumber: phone,
-        role: dto.role || 'FARMER',
+        role: userRole,
         location: dto.location || 'বাংলাদেশ',
       },
     });
+
+    if (userRole === 'VET') {
+      try {
+        await this.prisma.vetProfile.upsert({
+          where: { userId: user.id },
+          update: { isAvailable: true },
+          create: {
+            userId: user.id,
+            licenseNumber: `VET-${Math.floor(10000 + Math.random() * 90000)}`,
+            specialization: 'পশু চিকিৎসা ও শল্যচিকিৎসা (General Veterinary)',
+            experienceYears: 3,
+            consultationFee: 300,
+            bio: 'অভিজ্ঞ পশু চিকিৎসক। গবাদিপশু চিকিৎসা ও খামার পরামর্শ দিয়ে থাকি।',
+            district: dto.location || 'ঢাকা (Dhaka)',
+            isVerified: true,
+            isAvailable: true,
+          },
+        });
+      } catch (e) {
+        this.logger.error(`Failed to auto-create VetProfile for user ${user.id}: ${e.message}`);
+      }
+    }
 
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
@@ -55,6 +80,38 @@ export class UsersService {
         location: user.location,
       },
     };
+  }
+
+  async updateRole(id: string, role: string) {
+    const validRole = role === 'VET' ? 'VET' : 'FARMER';
+    const updatedUser = await this.prisma.user.update({
+      where: { id },
+      data: { role: validRole as any },
+    });
+
+    if (validRole === 'VET') {
+      try {
+        await this.prisma.vetProfile.upsert({
+          where: { userId: id },
+          update: { isAvailable: true },
+          create: {
+            userId: id,
+            licenseNumber: `VET-${Math.floor(10000 + Math.random() * 90000)}`,
+            specialization: 'পশু চিকিৎসা ও শল্যচিকিৎসা (General Veterinary)',
+            experienceYears: 3,
+            consultationFee: 300,
+            bio: 'অভিজ্ঞ পশু চিকিৎসক। গবাদিপশু চিকিৎসা ও খামার পরামর্শ দিয়ে থাকি।',
+            district: updatedUser.location || 'ঢাকা (Dhaka)',
+            isVerified: true,
+            isAvailable: true,
+          },
+        });
+      } catch (e) {
+        this.logger.error(`Failed to upsert VetProfile for user ${id}: ${e.message}`);
+      }
+    }
+
+    return updatedUser;
   }
 
   async login(dto: LoginUserDto) {

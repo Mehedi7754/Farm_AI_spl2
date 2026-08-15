@@ -206,51 +206,27 @@ Do NOT output intro, outro, or markdown markers. Output ONLY the bullet points i
     }
 
     let finalLivestockId = livestockId;
-    try {
-      const livestockExists = await this.prisma.livestock.findUnique({
-        where: { id: livestockId },
-      });
-      if (!livestockExists) {
-        const existingLivestock = await this.prisma.livestock.findFirst();
-        if (existingLivestock) {
-          finalLivestockId = existingLivestock.id;
-        } else {
-          let farmer = await this.prisma.user.findFirst({ where: { role: 'FARMER' } });
-          if (!farmer) {
-            farmer = await this.prisma.user.create({
-              data: {
-                name: 'Default Farmer',
-                email: `farmer_${Date.now()}@farm.ai`,
-                password: 'password123',
-                role: 'FARMER',
-                phoneNumber: `+88017${Math.floor(10000000 + Math.random() * 90000000)}`,
-              }
-            });
-          }
-          const newLivestock = await this.prisma.livestock.create({
-            data: {
-              farmerId: farmer.id,
-              species: 'Cow',
-              breed: 'Local',
-              gender: 'MALE',
-              weight: 300,
-              dateOfBirth: new Date(),
-            }
-          });
-          finalLivestockId = newLivestock.id;
-        }
+    const livestockExists = await this.prisma.livestock.findUnique({
+      where: { id: livestockId },
+    });
+
+    if (!livestockExists) {
+      // If no valid livestock ID, attempt to get or create a default livestock for safety
+      const defaultLivestock = await this.prisma.livestock.findFirst();
+      if (!defaultLivestock) {
+        throw new InternalServerErrorException('No livestock record found to attach health assessment');
       }
-    } catch (dbErr) {
-      console.warn('Database livestock resolution fallback failed:', dbErr.message);
+      finalLivestockId = defaultLivestock.id;
     }
 
-    // Save assessment to PostgreSQL database
+    // Save assessment to PostgreSQL database with dynamic symptoms
+    const dynamicSymptoms = [diagnosis, riskLevel === RiskLevel.EMERGENCY ? 'জরুরি অবস্থা' : 'লক্ষণ দেখা গেছে'];
     const assessment = await this.prisma.healthAssessment.create({
       data: {
         livestockId: finalLivestockId,
         riskLevel,
         diagnosisNotes: `AI Diagnosis: ${diagnosis}`,
-        symptoms: ['Skin Lesions', 'Swelling'],
+        symptoms: dynamicSymptoms,
       },
     });
 

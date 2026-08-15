@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Response } from 'express';
 import { VoiceChatDto } from './dto/voice-chat.dto';
 import { SymptomCheckDto } from './dto/symptom-check.dto';
 import { MedicineInfoDto } from './dto/medicine-info.dto';
@@ -24,6 +25,58 @@ export class AiToolsService {
     this.logger.log(`FarmAI AI Tools Service initialized with ${this.groqApiKeys.length} active Groq API Keys for rotation.`);
   }
 
+  async voiceChatStream(dto: VoiceChatDto, res: Response) {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    if (this.groqApiKeys.length > 0) {
+      let attempts = 0;
+      while (attempts < this.groqApiKeys.length) {
+        const apiKey = this.groqApiKeys[this.currentGroqKeyIndex];
+        try {
+          const groq = new Groq({ apiKey });
+          const stream = await groq.chat.completions.create({
+            messages: [
+              {
+                role: 'system',
+                content: 'আপনি FarmAI-এর একজন বন্ধুসুলভ ভেটেরিনারি ডাক্তার। একজন খামারির সাথে ফোনে কথা বলার মতো অত্যন্ত স্বাভাবিক, উষ্ণ ও কথ্য বাংলায় সংক্ষেপে ২ বাক্যে বাস্তবসম্মত পরামর্শ দিন। কোনো কঠিন বইয়ের ভাষা, রোবোটিক কথা বা মার্কডাউন ব্যবহার করবেন না।',
+              },
+              {
+                role: 'user',
+                content: dto.message,
+              },
+            ],
+            model: 'llama-3.3-70b-versatile',
+            temperature: 0.6,
+            max_tokens: 250,
+            stream: true,
+          });
+
+          for await (const chunk of stream) {
+            const content = chunk.choices[0]?.delta?.content || '';
+            if (content) {
+              res.write(content);
+            }
+          }
+          res.end();
+          return;
+        } catch (error) {
+          if (error?.status === 429 || (error.message && error.message.includes('429'))) {
+            this.logger.warn(`Groq rate limit hit on key index ${this.currentGroqKeyIndex} in stream. Rotating.`);
+            this.currentGroqKeyIndex = (this.currentGroqKeyIndex + 1) % this.groqApiKeys.length;
+            attempts++;
+          } else {
+            this.logger.error(`Groq Stream Error: ${error.message}`);
+            break;
+          }
+        }
+      }
+    }
+
+    res.write('আমি ফার্মএআই ভেটেরিনারি সহকারী। আপনার উত্তর তৈরিতে একটু সমস্যা হচ্ছে, আবার চেষ্টা করুন।');
+    res.end();
+  }
+
   async voiceChat(dto: VoiceChatDto) {
     // 1. Try Groq API with Rotation
     if (this.groqApiKeys.length > 0) {
@@ -36,16 +89,16 @@ export class AiToolsService {
             messages: [
               {
                 role: 'system',
-                content: 'আপনি FarmAI-এর একজন অভিজ্ঞ ভেটেরিনারি চিকিৎসক। উত্তর অত্যন্ত সংক্ষিপ্ত (সর্বোচ্চ ২-৩ বাক্য) এবং সরাসরি দেবেন। কোনো অপ্রয়োজনীয় কথা বলবেন অ্যাকশন নেবেন না। Do NOT output <thought> or <tool_call> tags. Do NOT use markdown. Provide ONLY the spoken response.',
+                content: 'আপনি FarmAI-এর একজন বিশেষজ্ঞ ভেটেরিনারি সহকারী। অত্যন্ত সরাসরি, সংক্ষিপ্ত এবং কথ্য বাংলায় ২-৩ বাক্যে ডাক্তারের মতো উত্তর দিন। কোনো ব্র্যাকেট, চিহ্ন, ট্যাগ বা ভূমিকা ব্যবহার করবেন না।',
               },
               {
                 role: 'user',
                 content: dto.message,
               },
             ],
-            model: 'qwen/qwen3.6-27b',
-            temperature: 0.6,
-            max_completion_tokens: 4000,
+            model: 'llama-3.3-70b-versatile',
+            temperature: 0.5,
+            max_completion_tokens: 1024,
             top_p: 0.95,
             stream: false,
             stop: null,
@@ -68,7 +121,7 @@ export class AiToolsService {
             return {
               reply: replyText,
               provider: 'groq-cloud',
-              model: 'qwen/qwen3.6-27b',
+              model: 'llama-3.3-70b-versatile',
               timestamp: new Date().toISOString(),
             };
           }
@@ -303,9 +356,85 @@ The JSON array must be at the root. Example:
   }
 
   async transcribeAudio(fileBuffer: Buffer, fileName: string = 'audio.mp3') {
+    if (this.groqApiKeys.length > 0) {
+      let attempts = 0;
+      while (attempts < this.groqApiKeys.length) {
+        const apiKey = this.groqApiKeys[this.currentGroqKeyIndex];
+        try {
+          const formData = new FormData();
+          const uint8 = new Uint8Array(fileBuffer);
+          const blob = new Blob([uint8], { type: 'audio/mpeg' });
+          formData.append('file', blob, fileName);
+          formData.append('model', 'whisper-large-v3-turbo');
+          formData.append('language', 'bn');
+          formData.append('response_format', 'json');
+
+          const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+            },
+            body: formData as any,
+          });
+
+          if (response.status === 429) {
+            this.logger.warn(`Groq rate limit hit on key index ${this.currentGroqKeyIndex} in transcribeAudio. Rotating.`);
+            this.currentGroqKeyIndex = (this.currentGroqKeyIndex + 1) % this.groqApiKeys.length;
+            attempts++;
+            continue;
+          }
+
+          if (response.ok) {
+            const data = await response.json();
+            return {
+              text: data.text || '',
+              provider: 'groq-whisper-turbo',
+              model: 'whisper-large-v3-turbo',
+              timestamp: new Date().toISOString(),
+            };
+          }
+          break;
+        } catch (error) {
+          this.logger.error(`Whisper Turbo transcription error: ${error.message}`);
+          break;
+        }
+      }
+    }
+
+    // Fallback
     return {
-      text: 'আমার গাভীর দুধ কমে গেছে এবং হালকা জ্বর আছে।',
-      provider: 'farm-ai-speech-local',
+      text: '',
+      provider: 'farm-ai-speech-fallback',
+      error: 'Transcription service temporarily unavailable',
+    };
+  }
+
+  async voiceToVoice(fileBuffer: Buffer, fileName: string = 'audio.mp3') {
+    const transcription = await this.transcribeAudio(fileBuffer, fileName);
+    
+    if (!transcription.text || transcription.text.trim() === '') {
+      return {
+        transcription: '',
+        reply: 'আপনার কথা বুঝতে পারিনি। দয়া করে আবার বলুন।',
+        provider: 'farm-ai-voice-pipeline',
+        sttModel: 'whisper-large-v3-turbo',
+        chatModel: 'llama-3.1-8b-instant',
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    const chatResponse = await this.voiceChat({
+      message: transcription.text,
+      language: 'bn',
+    });
+
+    return {
+      transcription: transcription.text,
+      reply: chatResponse.reply,
+      provider: 'farm-ai-voice-pipeline',
+      sttModel: 'whisper-large-v3-turbo',
+      chatModel: 'llama-3.1-8b-instant',
+      timestamp: new Date().toISOString(),
     };
   }
 }

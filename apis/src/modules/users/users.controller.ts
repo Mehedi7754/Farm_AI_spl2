@@ -48,6 +48,11 @@ export class UsersController {
     return this.usersService.updateFcmToken(id, updateFcmDto.fcmToken);
   }
 
+  @Patch(':id/role')
+  updateRole(@Param('id') id: string, @Body('role') role: string) {
+    return this.usersService.updateRole(id, role);
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.usersService.remove(id);

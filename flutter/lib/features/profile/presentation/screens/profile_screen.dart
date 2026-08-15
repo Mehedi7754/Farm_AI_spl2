@@ -220,6 +220,67 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
+  void _showRoleSwitchDialog(BuildContext context, WidgetRef ref, Map<String, dynamic>? user) {
+    final currentRole = (user?['role'] ?? '').toString().toUpperCase();
+    final targetRole = currentRole == 'VET' ? 'FARMER' : 'VET';
+    final targetRoleName = targetRole == 'VET' ? 'পশু চিকিৎসক (Vet Doctor)' : 'কৃষক (Farmer)';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.swap_horiz_rounded, color: Color(0xFF1B5E20)),
+            SizedBox(width: 8),
+            Text('ভূমিকা পরিবর্তন', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          'আপনি কি আপনার অ্যাকাউন্ট ভূমিকা "$targetRoleName"-এ পরিবর্তন করতে চান?',
+          style: const TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('না', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1B5E20)),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final userId = user?['id'];
+              if (userId == null) return;
+              try {
+                final ok = await ref.read(authProvider.notifier).updateProfile({'role': targetRole});
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(ok ? 'অ্যাকাউন্ট ভূমিকা "$targetRoleName"-এ পরিবর্তন করা হয়েছে।' : 'পরিবর্তন ব্যর্থ হয়েছে।'),
+                      backgroundColor: ok ? const Color(0xFF1B5E20) : Colors.red,
+                    ),
+                  );
+                  if (ok && targetRole == 'VET') {
+                    context.go('/vet-dashboard');
+                  } else if (ok) {
+                    context.go('/home');
+                  }
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('ভূমিকা পরিবর্তন করা সম্ভব হয়নি।'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            child: const Text('হ্যাঁ, পরিবর্তন করুন', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
@@ -300,6 +361,12 @@ class ProfileScreen extends ConsumerWidget {
                 'ব্যক্তিগত তথ্য',
                 subtitle: '$userName ($userRole)',
                 onTap: () => _showEditProfileModal(context, ref, user),
+              ),
+              _buildProfileItem(
+                Icons.medical_services_outlined,
+                'অ্যাকাউন্ট ভূমিকা/রোল পরিবর্তন',
+                subtitle: userRole == 'VET' ? 'বর্তমান: পশু চিকিৎসক (Vet Doctor)' : 'বর্তমান: কৃষক (Farmer)',
+                onTap: () => _showRoleSwitchDialog(context, ref, user),
               ),
               _buildProfileItem(
                 Icons.location_on_outlined,

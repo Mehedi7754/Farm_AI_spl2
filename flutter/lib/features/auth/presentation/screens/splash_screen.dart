@@ -69,26 +69,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
+                SizedBox(
                   width: 140,
                   height: 140,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
                   child: Image.asset(
                     'assets/images/logo.png',
                     fit: BoxFit.contain,
                   ),
-                ).animate().scale(duration: 800.ms, curve: Curves.easeOutBack).rotate(duration: 800.ms),
+                ).animate().scale(duration: 800.ms, curve: Curves.easeOutBack),
                 const SizedBox(height: 32),
                 Text(
                   StringsBn.appName,

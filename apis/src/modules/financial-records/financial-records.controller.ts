@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, Delete } from '@nestjs/common';
 import { FinancialRecordsService } from './financial-records.service';
 import { CreateFinancialRecordDto } from './dto/create-financial-record.dto';
 
@@ -24,6 +24,11 @@ export class FinancialRecordsController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.financialRecordsService.findOne(id);
+  }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: Partial<CreateFinancialRecordDto>) {
+    return this.financialRecordsService.update(id, dto);
   }
 
   @Delete(':id')

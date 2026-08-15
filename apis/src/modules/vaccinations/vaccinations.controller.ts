@@ -17,6 +17,11 @@ export class VaccinationsController {
     return this.vaccinationsService.findAll(livestockId);
   }
 
+  @Get('ai-recommendations')
+  getAiRecommendations(@Query('disease') disease?: string) {
+    return this.vaccinationsService.getAiRecommendations(disease);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.vaccinationsService.findOne(id);

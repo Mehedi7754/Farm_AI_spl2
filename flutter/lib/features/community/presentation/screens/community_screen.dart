@@ -274,12 +274,15 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
                                       } catch (_) {}
                                     }
                                     try {
-                                      await ApiClient.createCommunityPost(
+                                      final res = await ApiClient.createCommunityPost(
                                         title: titleCtrl.text.trim(),
                                         content: contentCtrl.text.trim(),
                                         category: selectedCategory,
                                         imageUrl: uploadedUrl,
                                       );
+                                      if (res != null) {
+                                        ref.read(communityPostsProvider.notifier).refreshPosts();
+                                      }
                                     } catch (_) {}
                                   });
 

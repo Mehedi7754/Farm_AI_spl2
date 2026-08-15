@@ -15,138 +15,81 @@ class ScaffoldWithBottomNav extends StatelessWidget {
     final isVet = user?['role'] == 'VET';
 
     return Scaffold(
-      extendBody: true,
+      extendBody: false, // Connected bottom bar, content sits nicely above nav bar
       body: navigationShell,
-      bottomNavigationBar: isVet ? null : _buildBlurVignetteProDock(context),
+      bottomNavigationBar: isVet ? null : _buildConnectedBottomNavBar(context),
     );
   }
 
-  Widget _buildBlurVignetteProDock(BuildContext context) {
+  Widget _buildConnectedBottomNavBar(BuildContext context) {
     final selectedIndex = navigationShell.currentIndex;
 
-    return Stack(
-      alignment: Alignment.bottomCenter,
-      clipBehavior: Clip.none,
-      children: [
-        // 1. Sleek Bottom Vignette Gradient View Fade
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: 100,
-          child: IgnorePointer(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.transparent,
-                    Color(0x180F172A),
-                    Color(0x3B047857),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
-            ),
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x0A0F172A),
+            blurRadius: 10,
+            spreadRadius: 0,
+            offset: Offset(0, -2),
+          ),
+        ],
+        border: Border(
+          top: BorderSide(
+            color: Color(0xFFF1F5F9),
+            width: 0.8,
           ),
         ),
-
-        // 2. Translucent Glass Dock with Backdrop Blur & Ambient Glow
-        SafeArea(
-          bottom: true,
-          child: Container(
-            height: 64,
-            margin: const EdgeInsets.fromLTRB(14, 0, 14, 6),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(22),
-              boxShadow: [
-                // Professional Ambient Blue Glow below the dock
-                const BoxShadow(
-                  color: Color(0x400284C7),
-                  blurRadius: 24,
-                  spreadRadius: 1,
-                  offset: Offset(0, 8),
-                ),
-                // Soft Emerald Shadow
-                const BoxShadow(
-                  color: Color(0x20047857),
-                  blurRadius: 12,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(22),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xEFF4FBF7), // Translucent Theme Green Tint
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: const Color(0xD0A7F3D0), width: 1.2),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildDockItem(context, 0, Icons.grid_view_rounded, Icons.grid_view_outlined, StringsBn.navHome, selectedIndex == 0),
-                      _buildDockItem(context, 1, Icons.pets_rounded, Icons.pets_outlined, StringsBn.navAnimals, selectedIndex == 1),
-                      _buildDockItem(context, 2, Icons.forum_rounded, Icons.forum_outlined, StringsBn.navCommunity, selectedIndex == 2),
-                      _buildDockItem(context, 3, Icons.person_rounded, Icons.person_outline_rounded, StringsBn.navProfile, selectedIndex == 3),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Container(
+          height: 50,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildNavItem(context, 0, Icons.grid_view_rounded, Icons.grid_view_outlined, StringsBn.navHome, selectedIndex == 0),
+              _buildNavItem(context, 1, Icons.pets_rounded, Icons.pets_outlined, StringsBn.navAnimals, selectedIndex == 1),
+              _buildNavItem(context, 2, Icons.forum_rounded, Icons.forum_outlined, StringsBn.navCommunity, selectedIndex == 2),
+              _buildNavItem(context, 3, Icons.person_rounded, Icons.person_outline_rounded, StringsBn.navProfile, selectedIndex == 3),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildDockItem(BuildContext context, int index, IconData activeIcon, IconData inactiveIcon, String label, bool isSelected) {
+  Widget _buildNavItem(BuildContext context, int index, IconData activeIcon, IconData inactiveIcon, String label, bool isSelected) {
     return GestureDetector(
       onTap: () => _onItemTapped(index),
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
+        duration: const Duration(milliseconds: 200),
         curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(horizontal: isSelected ? 16 : 12, vertical: 8),
+        padding: EdgeInsets.symmetric(horizontal: isSelected ? 12 : 8, vertical: 5),
         decoration: BoxDecoration(
-          gradient: isSelected
-              ? const LinearGradient(
-                  colors: [Color(0xFF10B981), Color(0xFF047857)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
-          color: isSelected ? null : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFF059669).withOpacity(0.35),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ]
-              : null,
+          color: isSelected ? const Color(0xFFECFDF5) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: isSelected ? Border.all(color: const Color(0xFFA7F3D0), width: 0.9) : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               isSelected ? activeIcon : inactiveIcon,
-              color: isSelected ? Colors.white : const Color(0xFF047857),
-              size: isSelected ? 22 : 20,
+              color: isSelected ? const Color(0xFF047857) : const Color(0xFF64748B),
+              size: 20,
             ),
             if (isSelected) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF047857),
                   letterSpacing: -0.2,
                 ),
               ),

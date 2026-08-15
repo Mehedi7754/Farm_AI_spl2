@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/services/notification_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String otherUserId;
@@ -11,16 +12,21 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   List<Map<String, dynamic>> _messages = [];
   bool _isLoading = true;
   Timer? _pollingTimer;
 
+  // Track the last message ID we've seen — so we can detect new ones
+  String? _lastSeenMessageId;
+  bool _isAppInForeground = true;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadMessages();
     _startPolling();
   }
@@ -30,7 +36,13 @@ class _ChatScreenState extends State<ChatScreen> {
     _pollingTimer?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _isAppInForeground = state == AppLifecycleState.resumed;
   }
 
   void _startPolling() {
@@ -43,14 +55,56 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final msgs = await ApiClient.getChatHistory(widget.otherUserId);
       if (!mounted) return;
+
+      final newList = List<Map<String, dynamic>>.from(msgs);
+      final currentUserId = ApiClient.currentUser?['id'] ?? '';
+
+      // Detect new incoming messages (not from us)
+      if (silent && _lastSeenMessageId != null && newList.isNotEmpty) {
+        final latestMsg = newList.last;
+        final latestId = latestMsg['id']?.toString() ?? '';
+        final latestSenderId = latestMsg['senderId']?.toString() ?? '';
+
+        if (latestId != _lastSeenMessageId && latestSenderId != currentUserId) {
+          // New message from the other person — show OS notification
+          final content = latestMsg['content']?.toString() ?? '';
+          if (content.isNotEmpty) {
+            await NotificationService().showChatNotification(
+              senderId: widget.otherUserId,
+              senderName: widget.otherUserName,
+              message: content,
+            );
+          }
+        }
+      }
+
+      if (newList.isNotEmpty) {
+        _lastSeenMessageId = newList.last['id']?.toString();
+      }
+
       setState(() {
-        _messages = List<Map<String, dynamic>>.from(msgs);
+        _messages = newList;
         if (!silent) _isLoading = false;
       });
+
       if (!silent) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_scrollController.hasClients) {
             _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+          }
+        });
+      } else if (_messages.isNotEmpty) {
+        // Auto-scroll to new message if near bottom
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) {
+            final pos = _scrollController.position;
+            if (pos.maxScrollExtent - pos.pixels < 100) {
+              _scrollController.animateTo(
+                pos.maxScrollExtent,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+              );
+            }
           }
         });
       }
@@ -64,12 +118,12 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
     _messageController.clear();
-    
+
     // Optimistic UI update
     final currentUserId = ApiClient.currentUser?['id'] ?? '';
     setState(() {
       _messages.add({
-        'id': DateTime.now().toString(),
+        'id': 'temp_${DateTime.now().millisecondsSinceEpoch}',
         'content': text,
         'senderId': currentUserId,
         'createdAt': DateTime.now().toIso8601String(),
@@ -89,7 +143,10 @@ class _ChatScreenState extends State<ChatScreen> {
       await ApiClient.sendMessage(receiverId: widget.otherUserId, content: text);
       _loadMessages(silent: true);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('বার্তা পাঠানো যায়নি')));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('বার্তা পাঠানো যায়নি')));
+      }
     }
   }
 
@@ -98,23 +155,103 @@ class _ChatScreenState extends State<ChatScreen> {
     final currentUserId = ApiClient.currentUser?['id'] ?? '';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: Text(widget.otherUserName, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFF1565C0),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF059669), Color(0xFF047857)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
+        title: Row(
+          children: [
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: Colors.white.withValues(alpha: 0.25),
+                  child: Text(
+                    widget.otherUserName.isNotEmpty ? widget.otherUserName[0].toUpperCase() : 'U',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF34D399),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.otherUserName,
+                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.2),
+                ),
+                Row(
+                  children: const [
+                    Icon(Icons.fiber_manual_record, color: Color(0xFF6EE7B7), size: 9),
+                    SizedBox(width: 4),
+                    Text(
+                      'অনলাইন সক্রিয়',
+                      style: TextStyle(color: Color(0xFFA7F3D0), fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
         foregroundColor: Colors.white,
-        elevation: 1,
+        elevation: 0,
       ),
       body: Column(
         children: [
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF1565C0)))
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF047857)))
                 : _messages.isEmpty
-                    ? const Center(child: Text('কোনো বার্তা নেই। প্রথম বার্তা পাঠান!', style: TextStyle(color: Color(0xFF94A3B8))))
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFECFDF5),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.mark_chat_read_rounded, color: Color(0xFF047857), size: 36),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'কোনো তথ্য আদান-প্রদান হয়নি',
+                              style: TextStyle(color: Color(0xFF0F172A), fontSize: 15, fontWeight: FontWeight.w800),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'প্রথম বার্তা পাঠিয়ে কথোপকথন শুরু করুন!',
+                              style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      )
                     : ListView.builder(
                         controller: _scrollController,
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                         itemCount: _messages.length,
                         itemBuilder: (context, index) {
                           final msg = _messages[index];
@@ -122,24 +259,44 @@ class _ChatScreenState extends State<ChatScreen> {
                           return Align(
                             alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
                             child: Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                              constraints: BoxConstraints(
+                                maxWidth: MediaQuery.of(context).size.width * 0.76,
+                              ),
                               decoration: BoxDecoration(
-                                color: isMe ? const Color(0xFF1565C0) : Colors.white,
+                                gradient: isMe
+                                    ? const LinearGradient(
+                                        colors: [Color(0xFF059669), Color(0xFF047857)],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      )
+                                    : null,
+                                color: isMe ? null : Colors.white,
                                 borderRadius: BorderRadius.only(
-                                  topLeft: const Radius.circular(16),
-                                  topRight: const Radius.circular(16),
-                                  bottomLeft: Radius.circular(isMe ? 16 : 0),
-                                  bottomRight: Radius.circular(isMe ? 0 : 16),
+                                  topLeft: const Radius.circular(18),
+                                  topRight: const Radius.circular(18),
+                                  bottomLeft: Radius.circular(isMe ? 18 : 4),
+                                  bottomRight: Radius.circular(isMe ? 4 : 18),
                                 ),
-                                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 5, offset: const Offset(0, 2))],
+                                border: isMe ? null : Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: isMe
+                                        ? const Color(0xFF059669).withValues(alpha: 0.2)
+                                        : const Color(0x0A0F172A),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
                               ),
                               child: Text(
                                 msg['content'] ?? '',
                                 style: TextStyle(
-                                  color: isMe ? Colors.white : const Color(0xFF1E293B),
+                                  color: isMe ? Colors.white : const Color(0xFF0F172A),
                                   fontSize: 14,
+                                  fontWeight: isMe ? FontWeight.w600 : FontWeight.w500,
+                                  height: 1.3,
                                 ),
                               ),
                             ),
@@ -148,37 +305,71 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: const BoxDecoration(
               color: Colors.white,
-              border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: InputDecoration(
-                      hintText: 'বার্তা লিখুন...',
-                      hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-                      filled: true,
-                      fillColor: const Color(0xFFF1F5F9),
-                    ),
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _sendMessage(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                CircleAvatar(
-                  backgroundColor: const Color(0xFF1565C0),
-                  child: IconButton(
-                    icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
-                    onPressed: _sendMessage,
-                  ),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x0A0F172A),
+                  blurRadius: 10,
+                  offset: Offset(0, -3),
                 ),
               ],
+              border: Border(top: BorderSide(color: Color(0xFFF1F5F9), width: 1.0)),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: TextField(
+                        controller: _messageController,
+                        style: const TextStyle(color: Color(0xFF0F172A), fontSize: 14),
+                        decoration: const InputDecoration(
+                          hintText: 'আপনার বার্তা লিখুন...',
+                          hintStyle: TextStyle(color: Color(0xFF94A3B8), fontSize: 13.5),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                          border: InputBorder.none,
+                        ),
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _sendMessage(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: _sendMessage,
+                    child: Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF059669), Color(0xFF047857)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF059669).withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.send_rounded, color: Colors.white, size: 19),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

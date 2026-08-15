@@ -170,6 +170,16 @@ class ApiClient {
     return _processResponse(response);
   }
 
+  static Future<Map<String, dynamic>> updateUserRole(String userId, String role) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/users/$userId/role'),
+      headers: _headers,
+      body: jsonEncode({'role': role}),
+    ).timeout(const Duration(seconds: 10));
+
+    return _processResponse(response);
+  }
+
   // --- SageMaker GPU AI Disease Detection (Direct JPEG POST - No S3) ---
 
   /// Direct SageMaker GPU endpoint invocation for cow disease detection AI inference
@@ -227,6 +237,18 @@ class ApiClient {
   // --- AI Tools ---
 
   static Future<Map<String, dynamic>> voiceChat(String message, {String language = 'bn'}) async {
+    try {
+      final response = await http.post(
+        Uri.parse('http://127.0.0.1:3005/ai-tools/voice-chat'),
+        headers: _headers,
+        body: jsonEncode({'message': message, 'language': language}),
+      ).timeout(const Duration(seconds: 4));
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return _processResponse(response);
+      }
+    } catch (_) {}
+
     final response = await http.post(
       Uri.parse('$baseUrl/ai-tools/voice-chat'),
       headers: _headers,
@@ -234,6 +256,50 @@ class ApiClient {
     ).timeout(const Duration(seconds: 10));
 
     return _processResponse(response);
+  }
+
+  static Future<void> streamVoiceChat(
+    String message, {
+    required Function(String chunk) onChunk,
+    required Function(String fullText) onComplete,
+    required Function(dynamic error) onError,
+    String language = 'bn',
+  }) async {
+    for (final hostUrl in ['http://127.0.0.1:3005', baseUrl]) {
+      try {
+        final request = http.Request('POST', Uri.parse('$hostUrl/ai-tools/voice-chat-stream'));
+        request.headers.addAll(_headers);
+        request.body = jsonEncode({'message': message, 'language': language});
+
+        final client = http.Client();
+        final streamedResponse = await client.send(request).timeout(const Duration(seconds: 6));
+
+        if (streamedResponse.statusCode >= 200 && streamedResponse.statusCode < 300) {
+          final StringBuffer fullTextBuffer = StringBuffer();
+          streamedResponse.stream.transform(utf8.decoder).listen(
+            (String chunk) {
+              fullTextBuffer.write(chunk);
+              onChunk(chunk);
+            },
+            onDone: () {
+              onComplete(fullTextBuffer.toString());
+              client.close();
+            },
+            onError: (err) {
+              onError(err);
+              client.close();
+            },
+            cancelOnError: true,
+          );
+          return;
+        }
+        client.close();
+      } catch (e) {
+        debugPrint('Streaming connection error to $hostUrl');
+      }
+    }
+
+    onError('Voice server unavailable');
   }
 
   static Future<Map<String, dynamic>> analyzeSymptoms(List<String> symptoms, {String? species, String? imageUrl}) async {
@@ -373,9 +439,14 @@ class ApiClient {
   // --- Community ---
 
   static Future<List<dynamic>> getCommunityPosts({String? category}) async {
-    final categoryParam = (category != null && category != 'সবগুলো') ? '?category=$category' : '';
+    final userId = _currentUser?['id'];
+    final categoryParam = (category != null && category != 'সবগুলো') ? 'category=$category' : '';
+    final userParam = userId != null ? 'userId=$userId' : '';
+    final queryParams = [if (categoryParam.isNotEmpty) categoryParam, if (userParam.isNotEmpty) userParam].join('&');
+    final queryString = queryParams.isNotEmpty ? '?$queryParams' : '';
+
     final response = await http.get(
-      Uri.parse('$baseUrl/community/posts$categoryParam'),
+      Uri.parse('$baseUrl/community/posts$queryString'),
       headers: _headers,
     ).timeout(const Duration(seconds: 10));
 
@@ -437,9 +508,13 @@ class ApiClient {
   }
 
   static Future<bool> togglePostLike(String postId) async {
+    final authorId = _currentUser?['id'];
     final response = await http.post(
       Uri.parse('$baseUrl/community/posts/$postId/like'),
       headers: _headers,
+      body: jsonEncode({
+        if (authorId != null) 'userId': authorId,
+      }),
     ).timeout(const Duration(seconds: 8));
 
     _processResponse(response);

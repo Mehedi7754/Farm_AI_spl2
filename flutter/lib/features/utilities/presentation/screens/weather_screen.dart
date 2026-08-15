@@ -5,7 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../../../../core/network/api_client.dart';
+import '../../../../core/services/notification_service.dart';
 import '../providers/weather_provider.dart';
 
 class WeatherScreen extends ConsumerStatefulWidget {
@@ -34,6 +34,141 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
     } catch (_) {
       return dateStr;
     }
+  }
+
+  void _showNotificationOptions(
+    BuildContext context,
+    double temp,
+    String locationName,
+    String status,
+    String advice,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.notifications_active_rounded, color: Color(0xFF047857), size: 22),
+                      SizedBox(width: 8),
+                      Text(
+                        'আবহাওয়া পুশ নোটিফিকেশন',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFE0F2FE),
+                  child: Icon(Icons.bolt_rounded, color: Color(0xFF0284C7)),
+                ),
+                title: const Text('তাৎক্ষণিক আবহাওয়া আপডেট পাঠাও', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                subtitle: const Text('বর্তমান তাপমাত্রা ও কৃষকের জন্য সতর্কতা নোটিফিকেশন দেবে', style: TextStyle(fontSize: 11)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await NotificationService().showWeatherAlert(
+                    title: '🌤️ আবহাওয়া আপডেট — ${locationName.isNotEmpty ? locationName : 'ঢাকা'}',
+                    body: 'বর্তমান তাপমাত্রা: ${temp.round()}°C ($status)। $advice',
+                    payload: 'WEATHER_ALERT',
+                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('তাৎক্ষণিক আবহাওয়া পুশ নোটিফিকেশন পাঠানো হয়েছে 🔔'),
+                        backgroundColor: Color(0xFF047857),
+                      ),
+                    );
+                  }
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFFEF3C7),
+                  child: Icon(Icons.wb_sunny_rounded, color: Color(0xFFD97706)),
+                ),
+                title: const Text('দৈনিক সকালের আবহাওয়া রিমাইন্ডার সেট করো', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                subtitle: const Text('প্রতিদিন নির্দিষ্ট সময়ে সকালের পুশ অ্যালার্ট পাবেন', style: TextStyle(fontSize: 11)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final messenger = ScaffoldMessenger.of(context);
+                  final pickedTime = await showTimePicker(
+                    context: context,
+                    initialTime: const TimeOfDay(hour: 7, minute: 0),
+                    helpText: 'সকালের আবহাওয়া রিমাইন্ডারের সময় নির্বাচন করুন',
+                  );
+                  if (pickedTime != null) {
+                    final formattedTimeStr = pickedTime.format(context);
+                    await NotificationService().scheduleDailyWeatherReminder(
+                      hour: pickedTime.hour,
+                      minute: pickedTime.minute,
+                      title: '🌤️ সকালের আবহাওয়া আপডেট — ${locationName.isNotEmpty ? locationName : 'ঢাকা'}',
+                      body: 'আজকের তাপমাত্রা ${temp.round()}°C ($status)। খামার ও পশুদের সতর্কতার সাথে যত্ন নিন।',
+                    );
+                    if (mounted) {
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'দৈনিক সকাল $formattedTimeStr টায় আবহাওয়া পুশ নোটিফিকেশন সেট করা হয়েছে ⏰',
+                          ),
+                          backgroundColor: const Color(0xFF047857),
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFDCFCE7),
+                  child: Icon(Icons.nights_stay_rounded, color: Color(0xFF16A34A)),
+                ),
+                title: const Text('আগামীকালের পূর্বাভাস নোটিফিকেশন সেট করো', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                subtitle: const Text('আগামীকাল সকাল ৬:৩০ টায় পূর্বাভাসের নোটিফিকেশন দেবে', style: TextStyle(fontSize: 11)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final messenger = ScaffoldMessenger.of(context);
+                  await NotificationService().scheduleTomorrowWeatherForecast(
+                    weatherSummary: 'আগামীকালের তাপমাত্রা আনুমানিক ${temp.round()}°C ($status)। $advice',
+                    location: locationName.isNotEmpty ? locationName : 'ঢাকা',
+                    hour: 6,
+                    minute: 30,
+                  );
+                  if (mounted) {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('আগামীকাল সকাল ৬:৩০ টায় পূর্বাভাসের নোটিফিকেশন সেট হয়েছে 🌦️'),
+                        backgroundColor: Color(0xFF047857),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -103,6 +238,19 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen> {
             onPressed: () => context.pop(),
           ),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.notifications_active_rounded, color: Colors.white),
+              tooltip: 'Weather Notification Options',
+              onPressed: () {
+                _showNotificationOptions(
+                  context,
+                  temp,
+                  locationName.isNotEmpty ? locationName : 'ঢাকা, বাংলাদেশ',
+                  currentWeatherDetails['status'] as String,
+                  advice,
+                );
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.refresh_rounded, color: Colors.white),
               onPressed: () {

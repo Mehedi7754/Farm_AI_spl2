@@ -37,14 +37,34 @@ export class LivestockService {
   async update(id: string, updateLivestockDto: UpdateLivestockDto): Promise<Livestock> {
     await this.findOne(id);
 
-    return this.prisma.livestock.update({
+    const updated = await this.prisma.livestock.update({
       where: { id },
       data: updateLivestockDto,
     });
+
+    if (updateLivestockDto.status === 'SOLD' || updateLivestockDto.status === 'DECEASED') {
+      // Unassign SmartCollar so hardware can be reused
+      await this.prisma.smartCollar.updateMany({
+        where: { livestockId: id },
+        data: { livestockId: null },
+      });
+      // Delete pending vaccinations
+      await this.prisma.vaccination.deleteMany({
+        where: { livestockId: id, isDone: false },
+      });
+    }
+
+    return updated;
   }
 
   async remove(id: string): Promise<Livestock> {
     await this.findOne(id);
+
+    // Explicitly unassign collar first before deleting livestock
+    await this.prisma.smartCollar.updateMany({
+      where: { livestockId: id },
+      data: { livestockId: null },
+    });
 
     return this.prisma.livestock.delete({
       where: { id },

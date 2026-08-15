@@ -77,15 +77,31 @@ export class FcmService implements OnModuleInit {
     title: string;
     body: string;
     data?: Record<string, string>;
+    channelId?: string;
   }): Promise<void> {
     if (!this.app) return;
+    const channelId = opts.channelId || (opts.data?.type === 'NEW_CHAT_MESSAGE' ? 'chat_messages' : 'default_channel');
     try {
       await getMessaging(this.app).send({
         token: opts.fcmToken,
-        android: { priority: 'high' },
-        notification: { title: opts.title, body: opts.body },
+        android: {
+          priority: 'high',
+          notification: {
+            title: opts.title,
+            body: opts.body,
+            channelId: channelId,
+            sound: 'default',
+            defaultVibrateTimings: true,
+            visibility: 'public',
+          },
+        },
+        notification: {
+          title: opts.title,
+          body: opts.body,
+        },
         data: opts.data ?? {},
       });
+      this.logger.log(`Generic FCM sent to token ${opts.fcmToken.substring(0, 15)}... (channel: ${channelId})`);
     } catch (e: any) {
       this.logger.error('FCM generic send failed', e?.message);
     }

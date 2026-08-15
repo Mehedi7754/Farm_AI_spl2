@@ -62,7 +62,7 @@ export class TeleConsultationsController {
   }
 
   @Delete(':id')
-  cancel(@Param('id') id: string) {
-    return this.svc.cancel(id);
+  cancel(@Param('id') id: string, @Query('cancelledBy') cancelledBy?: string) {
+    return this.svc.cancel(id, cancelledBy);
   }
 }

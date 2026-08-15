@@ -87,7 +87,11 @@ export class CommunityService {
       });
     }
 
-    return posts;
+    return posts.map((p) => ({
+      ...p,
+      isLiked: userId ? p.likes.some((l) => l.userId === userId) : false,
+      likesCount: p.likes.length,
+    }));
   }
 
   async findOnePost(id: string) {

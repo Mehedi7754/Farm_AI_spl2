@@ -54,6 +54,15 @@ export class FinancialRecordsService {
     };
   }
 
+  async update(id: string, dto: Partial<CreateFinancialRecordDto>) {
+    await this.findOne(id);
+    return this.prisma.financialRecord.update({
+      where: { id },
+      data: dto,
+      include: { farmer: true },
+    });
+  }
+
   async remove(id: string) {
     await this.findOne(id);
     return this.prisma.financialRecord.delete({

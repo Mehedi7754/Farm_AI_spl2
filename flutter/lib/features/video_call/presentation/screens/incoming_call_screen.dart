@@ -65,6 +65,9 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     // Connect socket to register presence
     _connectSocket();
 
+    // Start repeating haptic vibration for call alert
+    _startVibration();
+
     // Auto-decline after 45 seconds
     _autoDeclineTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) { t.cancel(); return; }
@@ -76,14 +79,31 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     });
   }
 
+  void _startVibration() {
+    HapticFeedback.vibrate();
+    Timer.periodic(const Duration(milliseconds: 1000), (vibeTimer) {
+      if (!mounted) {
+        vibeTimer.cancel();
+        return;
+      }
+      HapticFeedback.vibrate();
+    });
+  }
+
   void _connectSocket() {
     final wsUrl = ApiClient.baseUrl.replaceFirst('/api', '').replaceFirst('http', 'ws');
     _socket = io.io(
       '$wsUrl/webrtc',
       io.OptionBuilder().setTransports(['websocket']).enableAutoConnect().build(),
     );
-    // Listen for call-ended from caller side (vet cancelled before answer)
+    // Listen for call-ended or call-cancelled from caller side
     _socket!.on('call-ended', (_) {
+      if (mounted) {
+        _autoDeclineTimer?.cancel();
+        Navigator.of(context).pop();
+      }
+    });
+    _socket!.on('call-cancelled', (_) {
       if (mounted) {
         _autoDeclineTimer?.cancel();
         Navigator.of(context).pop();

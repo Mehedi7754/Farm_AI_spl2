@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../../core/l10n/strings_bn.dart';
+import '../../../../core/services/notification_store.dart';
 import '../../../utilities/presentation/providers/weather_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../animals/presentation/providers/livestock_provider.dart';
@@ -78,26 +79,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         title: Row(
           children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF10B981), Color(0xFF047857)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF059669).withValues(alpha: 0.28),
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: const Center(
-                child: Icon(Icons.eco_rounded, color: Colors.white, size: 24),
+            SizedBox(
+              width: 38,
+              height: 38,
+              child: Image.asset(
+                'assets/images/logo.png',
+                fit: BoxFit.contain,
               ),
             ),
             const SizedBox(width: 14),
@@ -147,28 +134,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               margin: const EdgeInsets.only(right: 8),
               padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+                color: const Color(0xFFECFDF5),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFA7F3D0), width: 1),
               ),
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  const Icon(Icons.notifications_none_rounded, color: Color(0xFF334155), size: 20),
-                  Positioned(
-                    top: -1,
-                    right: -1,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDC2626),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 1.5),
+              child: ValueListenableBuilder<int>(
+                valueListenable: NotificationStore().unreadCountNotifier,
+                builder: (context, unreadCount, _) {
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(
+                        unreadCount > 0
+                            ? Icons.notifications_active_rounded
+                            : Icons.notifications_none_rounded,
+                        color: const Color(0xFF047857),
+                        size: 20,
                       ),
-                    ),
-                  ),
-                ],
+                      if (unreadCount > 0)
+                        Positioned(
+                          top: -4,
+                          right: -4,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDC2626),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 1.5),
+                            ),
+                            child: Text(
+                              unreadCount > 9 ? '9+' : '$unreadCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 8,
+                                fontWeight: FontWeight.w900,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -178,9 +186,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               margin: const EdgeInsets.only(right: 8),
               padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+                color: const Color(0xFFECFDF5),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFA7F3D0), width: 1),
               ),
               child: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF047857), size: 20),
             ),
@@ -195,8 +203,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(
                 color: const Color(0xFFFEF2F2),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFFCA5A5), width: 1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFECDD3), width: 1),
               ),
               child: const Icon(Icons.logout_rounded, color: Color(0xFFDC2626), size: 20),
             ),
@@ -717,74 +725,82 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final list = [
       {
         'title': StringsBn.aiSymptom,
-        'sub': 'লক্ষণ ও ছবি দিয়ে রোগ পরীক্ষা',
+        'sub': 'লক্ষণ ও ছবি দিয়ে রোগ পরীক্ষা',
+        'tag': 'এআই ভিশন',
         'icon': Icons.psychology_rounded,
-        'accentColor': const Color(0xFF047857),
+        'accent': const Color(0xFF0F766E),
         'bgTint': const Color(0xFFF0FDF4),
-        'borderTint': const Color(0xFFA7F3D0),
+        'border': const Color(0xFF99F6E4),
         'route': '/ai/symptom',
       },
       {
         'title': StringsBn.cattleManagement,
-        'sub': 'পশুর তালিকা ও স্বাস্থ্য',
+        'sub': 'পশুর তালিকা ও স্বাস্থ্য ট্র্যাকিং',
+        'tag': 'খামার ট্র্যাকিং',
         'icon': Icons.pets_rounded,
-        'accentColor': const Color(0xFF1D4ED8),
-        'bgTint': const Color(0xFFEFF6FF),
-        'borderTint': const Color(0xFFBFDBFE),
+        'accent': const Color(0xFF334155),
+        'bgTint': const Color(0xFFF8FAFC),
+        'border': const Color(0xFFCBD5E1),
         'route': '/animals',
       },
       {
         'title': StringsBn.hospitalFinder,
-        'sub': 'নিকটস্থ হাসপাতাল ম্যাপ',
+        'sub': 'নিকটস্থ হাসপাতাল ও জিপিএস',
+        'tag': 'ইমার্জেন্সি',
         'icon': Icons.local_hospital_rounded,
-        'accentColor': const Color(0xFFB91C1C),
-        'bgTint': const Color(0xFFFEF2F2),
-        'borderTint': const Color(0xFFFECACA),
+        'accent': const Color(0xFFBE123C),
+        'bgTint': const Color(0xFFFFF1F2),
+        'border': const Color(0xFFFECDD3),
         'route': '/hospital',
       },
       {
         'title': StringsBn.vaccineReminder,
-        'sub': 'টিকা ও কৃমিনাশক নোটিশ',
+        'sub': 'টিকা ও কৃমিনাশক অ্যালার্ট',
+        'tag': 'বিজ্ঞপ্তি',
         'icon': Icons.vaccines_rounded,
-        'accentColor': const Color(0xFF7E22CE),
-        'bgTint': const Color(0xFFFAF5FF),
-        'borderTint': const Color(0xFFE9D5FF),
+        'accent': const Color(0xFF6D28D9),
+        'bgTint': const Color(0xFFF5F3FF),
+        'border': const Color(0xFFDDD6FE),
         'route': '/reminders',
       },
       {
         'title': StringsBn.accounting,
-        'sub': 'দুধ বিক্রি ও আয়-ব্যয়',
+        'sub': 'দুধ বিক্রি ও লাভ-ক্ষতি হিসাব',
+        'tag': 'স্মার্ট লেজার',
         'icon': Icons.payments_rounded,
-        'accentColor': const Color(0xFFB45309),
-        'bgTint': const Color(0xFFFEFCE8),
-        'borderTint': const Color(0xFFFDE68A),
+        'accent': const Color(0xFFB45309),
+        'bgTint': const Color(0xFFFFFBEB),
+        'border': const Color(0xFFFDE68A),
         'route': '/accounting',
       },
       {
         'title': StringsBn.weather,
-        'sub': 'বৃষ্টি ও আবহাওয়া পূর্বাভাস',
+        'sub': 'বৃষ্টি ও তাপমাত্রা পূর্বাভাস',
+        'tag': 'পূর্বাভাস',
         'icon': Icons.cloud_sync_rounded,
-        'accentColor': const Color(0xFF0369A1),
+        'accent': const Color(0xFF0369A1),
         'bgTint': const Color(0xFFF0F9FF),
-        'borderTint': const Color(0xFFBAE6FD),
+        'border': const Color(0xFFBAE6FD),
         'route': '/weather',
       },
       {
         'title': StringsBn.teleVet,
-        'sub': 'ডাক্তারের সাথে ভিডিও কল',
+        'sub': 'ডাক্তারের সাথে সরাসরি কল',
+        'tag': '২৪/৭ কল',
         'icon': Icons.video_call_rounded,
-        'accentColor': const Color(0xFFBE185D),
+        'accent': const Color(0xFFBE185D),
         'bgTint': const Color(0xFFFDF2F8),
-        'borderTint': const Color(0xFFFBCFE8),
+        'border': const Color(0xFFFBCFE8),
         'route': '/find-vet',
       },
       {
         'title': StringsBn.medicine,
-        'sub': 'ওষুধের বিবরণ ও মাত্রা',
+        'sub': 'ওষুধের নির্দেশিকা ও মাত্রা',
+        'tag': 'গাইড',
         'icon': Icons.medication_rounded,
-        'accentColor': const Color(0xFFC2410C),
+        'accent': const Color(0xFFC2410C),
         'bgTint': const Color(0xFFFFF7ED),
-        'borderTint': const Color(0xFFFFEDD5),
+        'border': const Color(0xFFFFEDD5),
         'route': '/medicine',
       },
     ];
@@ -795,147 +811,152 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       itemCount: list.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: 13,
-        mainAxisSpacing: 13,
-        childAspectRatio: 1.06,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.94,
       ),
       itemBuilder: (context, idx) {
         final item = list[idx];
-        final accentColor = item['accentColor'] as Color;
+        final accent = item['accent'] as Color;
         final bgTint = item['bgTint'] as Color;
-        final borderTint = item['borderTint'] as Color;
+        final border = item['border'] as Color;
 
         return GestureDetector(
           onTap: () => context.push(item['route'] as String),
           child: Container(
-            clipBehavior: Clip.antiAlias,
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: bgTint,
-              // Skewed Asymmetric Curved Geometry
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(24),
-                bottomRight: Radius.circular(24),
-                topRight: Radius.circular(8),
-                bottomLeft: Radius.circular(8),
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white,
+                  bgTint.withValues(alpha: 0.45),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              border: Border.all(color: borderTint, width: 1.3),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: border, width: 1.2),
               boxShadow: [
                 BoxShadow(
-                  color: accentColor.withOpacity(0.06),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+                  color: accent.withValues(alpha: 0.06),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+                const BoxShadow(
+                  color: Color(0x0A0F172A),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
                 ),
               ],
             ),
-            child: Stack(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Skewed Angled Background Ribbon Stripe Accent
-                Positioned(
-                  top: -12,
-                  right: -18,
-                  child: Transform.rotate(
-                    angle: -0.15,
-                    child: Container(
-                      width: 75,
-                      height: 48,
+                // Top Row: Icon Ring + Feature Tag
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
                       decoration: BoxDecoration(
-                        color: accentColor.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Top-Right Action Arrow Micro Badge
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: Container(
-                    padding: const EdgeInsets.all(5),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: borderTint),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accentColor.withOpacity(0.1),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.arrow_outward_rounded,
-                      size: 14,
-                      color: accentColor,
-                    ),
-                  ),
-                ),
-
-                // Card Main Content Layout
-                Padding(
-                  padding: const EdgeInsets.all(13),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Icon Badge with White Embossed Background & Mild Border Tint
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: borderTint, width: 1.2),
-                          boxShadow: [
-                            BoxShadow(
-                              color: accentColor.withOpacity(0.1),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
+                        gradient: LinearGradient(
+                          colors: [
+                            bgTint,
+                            border.withValues(alpha: 0.3),
                           ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                        child: Icon(
-                          item['icon'] as IconData,
-                          color: accentColor,
-                          size: 24,
-                        ),
-                      ),
-
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item['title'] as String,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF1E293B),
-                              letterSpacing: -0.3,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            item['sub'] as String,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF64748B),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: border, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accent.withValues(alpha: 0.12),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
                           ),
                         ],
                       ),
-                    ],
-                  ),
+                      child: Center(
+                        child: Icon(item['icon'] as IconData, color: accent, size: 22),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: bgTint,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: border.withValues(alpha: 0.9)),
+                      ),
+                      child: Text(
+                        item['tag'] as String,
+                        style: TextStyle(
+                          color: accent,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 8),
+
+                // Middle Content
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item['title'] as String,
+                      style: const TextStyle(
+                        color: Color(0xFF0F172A),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.3,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      item['sub'] as String,
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        height: 1.25,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+
+                // Bottom Action Link
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: bgTint,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: border),
+                      ),
+                      child: Center(
+                        child: Icon(Icons.arrow_forward_rounded, color: accent, size: 14),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-        ).animate().fadeIn(duration: 350.ms, delay: (idx * 30).ms);
+        ).animate().fadeIn(duration: 350.ms, delay: (idx * 35).ms).scale(begin: const Offset(0.96, 0.96), curve: Curves.easeOutCubic);
       },
     );
   }

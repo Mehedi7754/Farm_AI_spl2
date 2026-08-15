@@ -1,5 +1,59 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/services/notification_store.dart';
+import '../../../../core/services/notification_service.dart';
+
+// Icon & color helpers by type
+IconData _typeIcon(String type) {
+  switch (type) {
+    case 'weather':
+      return Icons.cloud_sync_rounded;
+    case 'chat':
+      return Icons.chat_bubble_rounded;
+    case 'reminder':
+      return Icons.vaccines_rounded;
+    case 'call':
+      return Icons.video_call_rounded;
+    case 'milk':
+      return Icons.local_drink_rounded;
+    default:
+      return Icons.notifications_rounded;
+  }
+}
+
+Color _typeColor(String type) {
+  switch (type) {
+    case 'weather':
+      return const Color(0xFF0284C7);
+    case 'chat':
+      return const Color(0xFF1565C0);
+    case 'reminder':
+      return const Color(0xFF9333EA);
+    case 'call':
+      return const Color(0xFFBE185D);
+    case 'milk':
+      return const Color(0xFF059669);
+    default:
+      return const Color(0xFF64748B);
+  }
+}
+
+Color _typeBgColor(String type) {
+  switch (type) {
+    case 'weather':
+      return const Color(0xFFE0F2FE);
+    case 'chat':
+      return const Color(0xFFEFF6FF);
+    case 'reminder':
+      return const Color(0xFFF3E8FF);
+    case 'call':
+      return const Color(0xFFFCE7F3);
+    case 'milk':
+      return const Color(0xFFD1FAE5);
+    default:
+      return const Color(0xFFF1F5F9);
+  }
+}
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
@@ -9,75 +63,32 @@ class NotificationScreen extends StatefulWidget {
 }
 
 class _NotificationScreenState extends State<NotificationScreen> {
-  final List<Map<String, dynamic>> _notifications = [
-    {
-      'id': '1',
-      'title': 'FMD টিকা রিমাইন্ডার 💉',
-      'body': 'গাভী নং ৩ (লালমনি) এর খুরা রোগের ২য় ডোজ টিকা দিতে হবে আগামীকাল সকাল ১০:০০ টায়।',
-      'time': '১০ মিনিট আগে',
-      'type': 'vaccine',
-      'isRead': false,
-      'color': const Color(0xFF9333EA),
-      'bgColor': const Color(0xFFF3E8FF),
-      'icon': Icons.vaccines_rounded,
-    },
-    {
-      'id': '2',
-      'title': 'স্মার্ট কলার লো-ব্যাটারি 🔋',
-      'body': 'স্মার্ট কলার #১০২ (গাভী নং ১) এর চার্জ ১৫% এ নেমে এসেছে। চার্জার সংযোগ দিন।',
-      'time': '১ ঘণ্টা আগে',
-      'type': 'collar',
-      'isRead': false,
-      'color': const Color(0xFFDC2626),
-      'bgColor': const Color(0xFFFEE2E2),
-      'icon': Icons.battery_alert_rounded,
-    },
-    {
-      'id': '3',
-      'title': 'ভারী বৃষ্টিপাতের সতর্কতা 🌧️',
-      'body': 'বগুড়া অঞ্চলে আজ বিকেলে ভারী বৃষ্টিপাতের সম্ভাবনা। পশুকে শেডের ভেতরে রাখুন।',
-      'time': '৩ ঘণ্টা আগে',
-      'type': 'weather',
-      'isRead': true,
-      'color': const Color(0xFF0284C7),
-      'bgColor': const Color(0xFFE0F2FE),
-      'icon': Icons.cloud_sync_rounded,
-    },
-    {
-      'id': '4',
-      'title': 'দুধ উৎপাদন রেকর্ড! 🥛',
-      'body': 'গতকাল রহিম ফার্মের মোট দুধ উৎপাদন ২৮ লিটারে উন্নীত হয়েছে (১৫% বৃদ্ধি)।',
-      'time': 'গতকাল',
-      'type': 'milk',
-      'isRead': true,
-      'color': const Color(0xFF059669),
-      'bgColor': const Color(0xFFD1FAE5),
-      'icon': Icons.trending_up_rounded,
-    },
-    {
-      'id': '5',
-      'title': 'ভেটেরিনারি ডাক্তারের অ্যাপয়েন্টমেন্ট',
-      'body': 'ডাঃ মোঃ রফিকুল ইসলামের সাথে আগামী পরশু বেলা ৩:০০ টায় ভিডিও কল বুকড।',
-      'time': '২ দিন আগে',
-      'type': 'doctor',
-      'isRead': true,
-      'color': const Color(0xFFDB2777),
-      'bgColor': const Color(0xFFFCE7F3),
-      'icon': Icons.medical_services_rounded,
-    },
-  ];
-
+  final _store = NotificationStore();
   String _selectedFilter = 'সকল';
 
-  void _markAllAsRead() {
-    setState(() {
-      for (var n in _notifications) {
-        n['isRead'] = true;
-      }
-    });
+  @override
+  void initState() {
+    super.initState();
+    // Listen to store changes
+    _store.unreadCountNotifier.addListener(_onStoreChanged);
+  }
+
+  @override
+  void dispose() {
+    _store.unreadCountNotifier.removeListener(_onStoreChanged);
+    super.dispose();
+  }
+
+  void _onStoreChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _markAllAsRead() async {
+    await _store.markAllRead();
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('সকল নোটিফিকেশন পড়া হয়েছে হিসেবে চিহ্নিত ✉️'),
+        content: Text('সকল নোটিফিকেশন পড়া হয়েছে হিসেবে চিহ্নিত ✉️'),
         backgroundColor: Color(0xFF064E3B),
         duration: Duration(seconds: 2),
       ),
@@ -86,11 +97,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final unreadCount = _notifications.where((n) => !n['isRead']).length;
-    final filtered = _notifications.where((n) {
-      if (_selectedFilter == 'অপঠিত') return !n['isRead'];
-      return true;
-    }).toList();
+    final all = _store.all;
+    final unreadCount = all.where((n) => !n.isRead).length;
+    final filtered = _selectedFilter == 'অপঠিত'
+        ? all.where((n) => !n.isRead).toList()
+        : all;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
@@ -108,12 +119,28 @@ class _NotificationScreenState extends State<NotificationScreen> {
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.white),
           ),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.notification_add_rounded, size: 20, color: Color(0xFFFDE047)),
+              tooltip: 'টেস্ট চ্যাট নোটিফিকেশন পাঠান',
+              onPressed: () async {
+                await NotificationService().showTestChatNotification();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('🔔 টেস্ট চ্যাট নোটিফিকেশন পাঠানো হয়েছে! ফোন নোটিফিকেশন প্যানেল চেক করুন।'),
+                      backgroundColor: Color(0xFF047857),
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+                }
+              },
+            ),
             if (unreadCount > 0)
               TextButton.icon(
                 onPressed: _markAllAsRead,
                 icon: const Icon(Icons.done_all_rounded, size: 16, color: Color(0xFFFDE047)),
                 label: const Text(
-                  'পড়া হয়েছে',
+                  'পড়া হয়েছে',
                   style: TextStyle(color: Color(0xFFFDE047), fontSize: 11, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -161,102 +188,129 @@ class _NotificationScreenState extends State<NotificationScreen> {
             ),
           ),
 
-          // Notifications List
-          Expanded(
-            child: ListView.separated(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.all(14),
-              itemCount: filtered.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                final n = filtered[index];
-                final isRead = n['isRead'] as bool;
-                final bgColor = n['bgColor'] as Color;
-                final iconColor = n['color'] as Color;
-
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      n['isRead'] = true;
-                    });
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: isRead ? Colors.white : const Color(0xFFECFDF5),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isRead ? const Color(0xFFCBD5E1) : const Color(0xFFA7F3D0),
-                        width: isRead ? 1 : 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.03),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
+          // Empty state
+          if (filtered.isEmpty)
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.notifications_off_outlined, size: 64, color: Colors.grey.shade300),
+                    const SizedBox(height: 16),
+                    Text(
+                      _selectedFilter == 'অপঠিত'
+                          ? 'কোনো অপঠিত নোটিফিকেশন নেই'
+                          : 'কোনো নোটিফিকেশন নেই',
+                      style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14, fontWeight: FontWeight.w600),
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: bgColor,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(n['icon'] as IconData, color: iconColor, size: 22),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'আবহাওয়া আপডেট, চ্যাট ও রিমাইন্ডার এখানে দেখা যাবে',
+                      style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            // Notifications List
+            Expanded(
+              child: ListView.separated(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.all(14),
+                itemCount: filtered.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final n = filtered[index];
+                  final isRead = n.isRead;
+                  final iconColor = _typeColor(n.type);
+                  final bgColor = _typeBgColor(n.type);
+                  final icon = _typeIcon(n.type);
+
+                  return GestureDetector(
+                    onTap: () async {
+                      await _store.markRead(n.id);
+                      if (mounted) setState(() {});
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: isRead ? Colors.white : const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isRead ? const Color(0xFFCBD5E1) : const Color(0xFFA7F3D0),
+                          width: isRead ? 1 : 1.5,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      n['title'] as String,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: isRead ? FontWeight.bold : FontWeight.w900,
-                                        color: const Color(0xFF0F172A),
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    n['time'] as String,
-                                    style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                n['body'] as String,
-                                style: const TextStyle(fontSize: 12, color: Color(0xFF475569), height: 1.3),
-                              ),
-                            ],
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.03),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
                           ),
-                        ),
-                        if (!isRead)
+                        ],
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Container(
-                            margin: const EdgeInsets.only(left: 6, top: 4),
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF059669),
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: bgColor,
                               shape: BoxShape.circle,
                             ),
+                            child: Icon(icon, color: iconColor, size: 22),
                           ),
-                      ],
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        n.title,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: isRead ? FontWeight.bold : FontWeight.w900,
+                                          color: const Color(0xFF0F172A),
+                                        ),
+                                      ),
+                                    ),
+                                    Text(
+                                      n.time,
+                                      style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  n.body,
+                                  style: const TextStyle(fontSize: 12, color: Color(0xFF475569), height: 1.3),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (!isRead)
+                            Container(
+                              margin: const EdgeInsets.only(left: 6, top: 4),
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF059669),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
         ],
       ),
     );

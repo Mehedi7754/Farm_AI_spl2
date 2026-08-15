@@ -3,12 +3,169 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tz_data;
 import '../../../animals/presentation/providers/livestock_provider.dart';
+import '../../../../core/services/notification_service.dart';
+
+class AiVaccinePreset {
+  final String diseaseName;
+  final String vaccineName;
+  final String type; // 'টিকা', 'কৃমিনাশক', 'ভিটামিন'
+  final int boosterDays;
+  final String badgeText;
+
+  const AiVaccinePreset({
+    required this.diseaseName,
+    required this.vaccineName,
+    required this.type,
+    required this.boosterDays,
+    required this.badgeText,
+  });
+}
+
+final List<AiVaccinePreset> _aiVaccinePresets = [
+  const AiVaccinePreset(
+    diseaseName: 'ক্ষুরা রোগ (FMD - Foot & Mouth)',
+    vaccineName: 'FMD ৩-ভ্যালেন্ট ভ্যাক্সিন (ক্ষুরারোগ)',
+    type: 'টিকা',
+    boosterDays: 180,
+    badgeText: 'প্রতি ৬ মাস পর পর বুস্টার ডোজ দেওয়া উত্তম',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'তড়কা রোগ (Anthrax)',
+    vaccineName: 'তড়কা (Anthrax) প্রতিরোধক ভ্যাক্সিন',
+    type: 'টিকা',
+    boosterDays: 365,
+    badgeText: 'বছরে ১ বার নিয়মিত টিকাদান আবশ্যক',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'গলাফুলা (HS - Haemorrhagic Septicaemia)',
+    vaccineName: 'গলাফুলা (HS) প্রতিরোধক ভ্যাক্সিন',
+    type: 'টিকা',
+    boosterDays: 180,
+    badgeText: 'বর্ষার শুরুতে ও প্রতি ৬ মাসে বুস্টার দিন',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'বাদলা রোগ (BQ - Blackquarter)',
+    vaccineName: 'বাদলা (BQ) প্রতিরোধক ভ্যাক্সিন',
+    type: 'টিকা',
+    boosterDays: 180,
+    badgeText: 'প্রতি ৬ মাস পর বুস্টার ডোজ দেওয়া সুপারিশকৃত',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'ল্যাম্পি স্কিন ডিজিজ (LSD)',
+    vaccineName: 'ল্যাম্পি স্কিন (LSD / GoatPox) ভ্যাক্সিন',
+    type: 'টিকা',
+    boosterDays: 365,
+    badgeText: 'চর্মরোগ প্রতিরোধে বছরে ১ বার টিকা দিন',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'পিপিআর রোগ (PPR - Goat Pox)',
+    vaccineName: 'পিপিআর (PPR Live) ভ্যাক্সিন',
+    type: 'টিকা',
+    boosterDays: 1095,
+    badgeText: 'ছাগল ও ভেড়াকে ৩ বছর পর পর ১ মাত্রা দিন',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'রেবিস / জলাতঙ্ক (Rabies)',
+    vaccineName: 'রেবিস (Rabies) প্রতিরোধক ভ্যাক্সিন',
+    type: 'টিকা',
+    boosterDays: 365,
+    badgeText: 'জলাতঙ্ক প্রতিরোধে বছরে ১ বার টিকা দিন',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'ব্রুসেলোসিস (Brucellosis - গর্ভপাত)',
+    vaccineName: 'ব্রুসেলোসিস (Strain 19) ভ্যাক্সিন',
+    type: 'টিকা',
+    boosterDays: 365,
+    badgeText: '৪-৮ মাস বয়সে বকনা বাছুরকে ১ বার দিন',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'বাবেসিওসিস (Babesiosis - রক্ত প্রস্রাব)',
+    vaccineName: 'ইমিডোকার্ব ডিপ্রোপিওনেট কোర్స్',
+    type: 'টিকা',
+    boosterDays: 180,
+    badgeText: 'রক্ত প্রস্রাব ও পিত্তজ্বর প্রতিরোধ কোার্স',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'থাইলেরিওসিস (Theileriosis - গিলটি)',
+    vaccineName: 'বুপারভাকোন ইনজেকশন ডোজ',
+    type: 'টিকা',
+    boosterDays: 180,
+    badgeText: 'লসিকากร গ্রন্থি ফোলা প্রতিরোধ কোার্স',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'অ্যানাপ্লাজমোসিস (Anaplasmosis)',
+    vaccineName: 'অক্সিটেট্রাসাইক্লিন এলএ কোার্স',
+    type: 'টিকা',
+    boosterDays: 180,
+    badgeText: 'আটালী বাহিত রক্তস্বল্পতা প্রতিরোধ',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'কৃমি ও পরজীবী (Deworming)',
+    vaccineName: 'অ্যালবেনডাজল / লেভামিসল (Dewormer Bolus)',
+    type: 'কৃমিনাশক',
+    boosterDays: 90,
+    badgeText: 'প্রতি ৩ মাস পর পর কৃমিনাশক প্রদান নিশ্চিত করুন',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'কলিজা কৃমি (Liver Fluke)',
+    vaccineName: 'ট্রাইক্লাবেনডাজল বোলস',
+    type: 'কৃমিনাশক',
+    boosterDays: 90,
+    badgeText: 'বর্ষার শেষে ও শুরুতে প্রতি ৩ মাসে দিন',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'উকুন ও আটালী চর্মরোগ',
+    vaccineName: 'আইভারমেকটিন (Sub-Q) ইনজেকশন',
+    type: 'কৃমিনাশক',
+    boosterDays: 120,
+    badgeText: 'চামড়ার উকুন ও খোসপাঁচড়ায় ৪ মাস পর পর',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'ভিটামিন ও শক্তি ঘাটতি (Tonic)',
+    vaccineName: 'ভিটামিন AD3E / ক্যালসিয়াম ইনজেকশন',
+    type: 'ভিটামিন',
+    boosterDays: 30,
+    badgeText: 'শারীরিক শক্তি ও দুধ বাড়াতে প্রতি মাসে কোর্স করান',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'ওলান প্রদাহ (Mastitis)',
+    vaccineName: 'ম্যাস্টিভেট হারবাল ও ক্যালসিয়াম থেরাপি',
+    type: 'ভিটামিন',
+    boosterDays: 60,
+    badgeText: 'ওলান স্বাস্থ্য সুরক্ষায় ২ মাস পর পর কোর্স',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'কেটোসিস (Ketosis - মিষ্টি নিঃশ্বাস)',
+    vaccineName: 'ডেক্সট্রোজ ২৫% ও ভিটামিন B-Complex',
+    type: 'ভিটামিন',
+    boosterDays: 45,
+    badgeText: 'প্রসব পরবর্তী শর্করা ঘাটতি পূরণে',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'এসিডোসিস (Acidosis - পেট ঢোল)',
+    vaccineName: 'সোডিয়াম বাইকার্বোনেট ড্রেঞ্চ',
+    type: 'ভিটামিন',
+    boosterDays: 30,
+    badgeText: 'পাকস্থলীর পিএইচ ভারসাম্য বজায় রাখতে',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'ক্ষুরের পচন (Foot Rot)',
+    vaccineName: 'কপার সালফেট ও অ্যান্টিসেপটিক স্প্রে',
+    type: 'টিকা',
+    boosterDays: 60,
+    badgeText: 'বর্ষাকালে ক্ষুরের স্বাস্থ্য সুরক্ষায়',
+  ),
+  const AiVaccinePreset(
+    diseaseName: 'বাছুরের ডায়রিয়া (Calf Scours)',
+    vaccineName: 'নিওমাইসিন ও সলফা থেরাপি',
+    type: 'টিকা',
+    boosterDays: 30,
+    badgeText: 'বাছুরের নাভি পাকা ও আমাশয়ে',
+  ),
+];
+
 
 class VaccineReminderScreen extends ConsumerStatefulWidget {
   const VaccineReminderScreen({super.key});
@@ -18,10 +175,10 @@ class VaccineReminderScreen extends ConsumerStatefulWidget {
 }
 
 class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
-  late FlutterLocalNotificationsPlugin _notificationsPlugin;
-  bool _isNotificationInitialized = false;
+  final NotificationService _notifSvc = NotificationService();
 
   String _selectedCattle = 'সকল গবাদিপশু (All Cattle)';
+  String _selectedDiseaseFilter = 'সকল (All)';
 
   List<Map<String, dynamic>> _reminders = [];
 
@@ -30,7 +187,7 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
   @override
   void initState() {
     super.initState();
-    _initNotifications();
+    _notifSvc.initialize();
     _loadReminders();
   }
 
@@ -76,70 +233,18 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
     }
   }
 
-  void _initNotifications() async {
-    _notificationsPlugin = FlutterLocalNotificationsPlugin();
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const initSettings = InitializationSettings(android: androidSettings);
-
-    try {
-      tz_data.initializeTimeZones();
-      await _notificationsPlugin.initialize(settings: initSettings);
-
-      // Request system notification permission explicitly
-      try {
-        await Permission.notification.request();
-      } catch (_) {}
-      await _notificationsPlugin
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-          ?.requestNotificationsPermission();
-
-      if (mounted) setState(() => _isNotificationInitialized = true);
-    } catch (e) {
-      debugPrint('Notification init error: $e');
-    }
-  }
-
-  Future<void> _scheduleNotification({
+  Future<void> _scheduleReminderNotification({
     required int id,
     required String title,
     required String body,
-    DateTime? scheduledTime,
+    required DateTime scheduledTime,
   }) async {
-    if (!_isNotificationInitialized) return;
-
-    const androidDetails = AndroidNotificationDetails(
-      'vaccine_channel',
-      'Vaccine Reminders',
-      channelDescription: 'Farm AI Vaccine and Deworming Notifications',
-      importance: Importance.max,
-      priority: Priority.high,
+    await _notifSvc.scheduleMedicationReminder(
+      id: id,
+      title: title,
+      body: body,
+      scheduledTime: scheduledTime,
     );
-    const details = NotificationDetails(android: androidDetails);
-
-    try {
-      if (scheduledTime != null && scheduledTime.isAfter(DateTime.now())) {
-        // Schedule at the user-selected future time
-        final tzTime = tz.TZDateTime.from(scheduledTime, tz.local);
-        await _notificationsPlugin.zonedSchedule(
-          id: id,
-          title: title,
-          body: body,
-          scheduledDate: tzTime,
-          notificationDetails: details,
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-                  );
-      } else {
-        // Fire immediately if time is in the past or not provided
-        await _notificationsPlugin.show(
-          id: id,
-          title: title,
-          body: body,
-          notificationDetails: details,
-        );
-      }
-    } catch (e) {
-      debugPrint('Notification schedule error: $e');
-    }
   }
 
   List<String> _buildRealCattleOptions(List<dynamic> realCattleList) {
@@ -156,13 +261,16 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
     final titleCtrl = TextEditingController();
     DateTime? selectedDate = DateTime.now().add(const Duration(days: 1));
     TimeOfDay? selectedTime = const TimeOfDay(hour: 10, minute: 0);
-    DateTime? selectedNextBoosterDate = DateTime.now().add(const Duration(days: 60));
+    DateTime? selectedNextBoosterDate = DateTime.now().add(const Duration(days: 180));
+    // Time picker for the next booster date reminder
+    TimeOfDay? selectedNextBoosterTime = const TimeOfDay(hour: 9, minute: 0);
 
     String modalSelectedCattle = cattleOptions.length > 1
         ? cattleOptions[1]
         : (_selectedCattle == 'সকল গবাদিপশু (All Cattle)' ? 'সকল গবাদিপশু (All Cattle)' : _selectedCattle);
 
     String vaccineType = 'টিকা';
+    AiVaccinePreset? selectedAiPreset;
 
     showModalBottomSheet(
       context: context,
@@ -173,12 +281,12 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             final formattedScheduleDate = selectedDate != null && selectedTime != null
-                ? '${DateFormat('dd MMMM, yyyy').format(selectedDate!)} - ${selectedTime!.format(context)}'
+                ? '${DateFormat('dd MMMM, yyyy').format(selectedDate!)} — ${selectedTime!.format(context)}'
                 : 'তারিখ ও সময় নির্বাচন করুন';
 
-            final formattedNextBooster = selectedNextBoosterDate != null
-                ? DateFormat('dd MMMM, yyyy').format(selectedNextBoosterDate!)
-                : 'পরবর্তী বুস্টার ডোজের তারিখ (ঐচ্ছিক)';
+            final formattedNextBooster = selectedNextBoosterDate != null && selectedNextBoosterTime != null
+                ? '${DateFormat('dd MMMM, yyyy').format(selectedNextBoosterDate!)} — ${selectedNextBoosterTime!.format(context)}'
+                : 'পরবর্তী বুস্টার ডোজের তারিখ ও সময় (ঐচ্ছিক)';
 
             final availableModalCattle = cattleOptions.length > 1
                 ? cattleOptions.where((opt) => opt != 'সকল গবাদিপশু (All Cattle)').toList()
@@ -186,6 +294,15 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
 
             if (!availableModalCattle.contains(modalSelectedCattle)) {
               modalSelectedCattle = availableModalCattle.first;
+            }
+
+            void applyAiPreset(AiVaccinePreset preset) {
+              setModalState(() {
+                selectedAiPreset = preset;
+                titleCtrl.text = preset.vaccineName;
+                vaccineType = preset.type;
+                selectedNextBoosterDate = DateTime.now().add(Duration(days: preset.boosterDays));
+              });
             }
 
             return Padding(
@@ -204,7 +321,7 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'নতুন টিকা সিডিউল যুক্ত করুন 💉',
+                          'নতুন টিকা সিডিউল যুক্ত করুন',
                           style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF0F172A)),
                         ),
                         IconButton(
@@ -214,6 +331,98 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
                       ],
                     ),
                     const SizedBox(height: 10),
+
+                    // Disease-to-Vaccine Selection Card
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFECFDF5), Color(0xFFF0FDF4)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFA7F3D0)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(Icons.vaccines_outlined, size: 18, color: Color(0xFF047857)),
+                              SizedBox(width: 6),
+                              Text(
+                                'রোগ অনুযায়ী সঠিক টিকা নির্বাচন',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Color(0xFF047857)),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'রোগ বেছে নিন, স্বয়ংক্রিয়ভাবে সঠিক টিকার নাম ও বুস্টার সময় সেট হয়ে যাবে:',
+                            style: TextStyle(fontSize: 10, color: Color(0xFF065F46), fontWeight: FontWeight.w500),
+                          ),
+
+                          const SizedBox(height: 8),
+
+                          // AI Preset Dropdown
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFF6EE7B7)),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<AiVaccinePreset>(
+                                hint: const Text('রোগের নাম নির্বাচন করুন...', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                                value: selectedAiPreset,
+                                isExpanded: true,
+                                icon: const Icon(Icons.auto_awesome_rounded, color: Color(0xFF047857), size: 18),
+                                items: _aiVaccinePresets.map((preset) {
+                                  return DropdownMenuItem<AiVaccinePreset>(
+                                    value: preset,
+                                    child: Text(
+                                      preset.diseaseName,
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (preset) {
+                                  if (preset != null) applyAiPreset(preset);
+                                },
+                              ),
+                            ),
+                          ),
+
+                          if (selectedAiPreset != null) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: const Color(0xFF34D399)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.check_circle_rounded, color: Color(0xFF059669), size: 16),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      '${selectedAiPreset!.badgeText} (+${selectedAiPreset!.boosterDays} দিন)',
+                                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF065F46)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
 
                     // Real Cattle Selector
                     const Text('রিয়েল গবাদিপশু নির্বাচন করুন (Cattle Management API)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF059669))),
@@ -314,57 +523,169 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
 
                     const SizedBox(height: 12),
 
-                    // Next Booster Reminder Date Picker
-                    const Text('পরবর্তী বুস্টার ডোজের তারিখ (Next Booster Reminder Date)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF475569))),
-                    const SizedBox(height: 4),
-                    GestureDetector(
-                      onTap: () async {
-                        final pickedNextDate = await showDatePicker(
-                          context: context,
-                          initialDate: selectedNextBoosterDate ?? DateTime.now().add(const Duration(days: 60)),
-                          firstDate: DateTime.now(),
-                          lastDate: DateTime(2030),
-                        );
-                        if (pickedNextDate != null) {
-                          setModalState(() {
-                            selectedNextBoosterDate = pickedNextDate;
-                          });
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEFF6FF),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF3B82F6)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.event_repeat_rounded, size: 18, color: Color(0xFF2563EB)),
-                            const SizedBox(width: 10),
-                            Expanded(
+                    // Next Booster Reminder Date & Time Picker Section
+                    const Text(
+                      'পরবর্তী বুস্টার/ডোজের তারিখ ও সময় (Next Booster Reminder Date & Time)',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+                    ),
+                    const SizedBox(height: 6),
+
+                    // Quick duration presets for Next Booster
+                    Row(
+                      children: [
+                        const Text('দ্রুত সেট: ', style: TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                        const SizedBox(width: 4),
+                        ...[30, 60, 90, 180].map((days) {
+                          return GestureDetector(
+                            onTap: () {
+                              setModalState(() {
+                                selectedNextBoosterDate = DateTime.now().add(Duration(days: days));
+                                selectedNextBoosterTime ??= const TimeOfDay(hour: 9, minute: 0);
+                              });
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.only(right: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDBEAFE),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFF93C5FD)),
+                              ),
                               child: Text(
-                                formattedNextBooster,
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E40AF)),
+                                '+$days দিন',
+                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF1D4ED8)),
                               ),
                             ),
-                          ],
+                          );
+                        }),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    Row(
+                      children: [
+                        // Next Date Picker Button
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () async {
+                              final pickedNextDate = await showDatePicker(
+                                context: context,
+                                initialDate: selectedNextBoosterDate ?? DateTime.now().add(const Duration(days: 60)),
+                                firstDate: DateTime.now(),
+                                lastDate: DateTime(2030),
+                                helpText: 'পরবর্তী বুস্টার ডোজের তারিখ নির্বাচন করুন',
+                              );
+                              if (pickedNextDate != null && mounted) {
+                                setModalState(() {
+                                  selectedNextBoosterDate = pickedNextDate;
+                                });
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFF3B82F6)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.event_repeat_rounded, size: 16, color: Color(0xFF2563EB)),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      selectedNextBoosterDate != null
+                                          ? DateFormat('dd MMM, yyyy').format(selectedNextBoosterDate!)
+                                          : 'তারিখ বাছুন',
+                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1E40AF)),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        // Next Time Picker Button
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () async {
+                              final pickedNextTime = await showTimePicker(
+                                context: context,
+                                initialTime: selectedNextBoosterTime ?? const TimeOfDay(hour: 9, minute: 0),
+                                helpText: 'পরবর্তী বুস্টার ডোজের সময় নির্বাচন করুন',
+                              );
+                              if (pickedNextTime != null && mounted) {
+                                setModalState(() {
+                                  selectedNextBoosterTime = pickedNextTime;
+                                });
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFF3B82F6)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.access_time_rounded, size: 16, color: Color(0xFF2563EB)),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      selectedNextBoosterTime != null
+                                          ? selectedNextBoosterTime!.format(context)
+                                          : 'সময় বাছুন',
+                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1E40AF)),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
 
                     const SizedBox(height: 18),
 
-                    // Save Button
                     SizedBox(
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton.icon(
-                        onPressed: () {
+                        onPressed: () async {
                           if (titleCtrl.text.isNotEmpty) {
                             final cattleName = modalSelectedCattle.split(' [')[0];
-                            final collarCode = modalSelectedCattle.contains('[') ? modalSelectedCattle.split('[')[1].replaceAll(']', '') : 'আনবাইন্ড';
+                            final collarCode = modalSelectedCattle.contains('[')
+                                ? modalSelectedCattle.split('[')[1].replaceAll(']', '')
+                                : 'আনবাইন্ড';
                             final reminderId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+                            // Build primary scheduled DateTime
+                            final schedDT = selectedDate != null && selectedTime != null
+                                ? DateTime(
+                                    selectedDate!.year,
+                                    selectedDate!.month,
+                                    selectedDate!.day,
+                                    selectedTime!.hour,
+                                    selectedTime!.minute,
+                                  )
+                                : DateTime.now().add(const Duration(seconds: 5));
+
+                            // Build next booster DateTime
+                            final nextBoosterDT =
+                                selectedNextBoosterDate != null && selectedNextBoosterTime != null
+                                    ? DateTime(
+                                        selectedNextBoosterDate!.year,
+                                        selectedNextBoosterDate!.month,
+                                        selectedNextBoosterDate!.day,
+                                        selectedNextBoosterTime!.hour,
+                                        selectedNextBoosterTime!.minute,
+                                      )
+                                    : null;
 
                             setState(() {
                               _reminders.insert(0, {
@@ -376,33 +697,45 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
                                 'nextBooster': formattedNextBooster,
                                 'isCompleted': false,
                                 'type': vaccineType,
-                                'color': vaccineType == 'কৃমিনাশক' ? const Color(0xFFD97706) : const Color(0xFF059669),
+                                'color': vaccineType == 'কৃমিনাশক'
+                                    ? const Color(0xFFD97706)
+                                    : const Color(0xFF059669),
+                                'nextBoosterEpoch': nextBoosterDT?.millisecondsSinceEpoch,
                               });
                             });
-                            // Persist reminders to SharedPreferences
                             _saveReminders();
 
-                            // Schedule notification at the user-chosen date/time
-                            final schedDT = selectedDate != null && selectedTime != null
-                                ? DateTime(
-                                    selectedDate!.year, selectedDate!.month, selectedDate!.day,
-                                    selectedTime!.hour, selectedTime!.minute,
-                                  )
-                                : null;
-                            _scheduleNotification(
+                            // Schedule primary vaccine notification
+                            await _scheduleReminderNotification(
                               id: reminderId,
-                              title: '🔔 ফার্ম ভেক্সিন রিমাইন্ডার: ${titleCtrl.text}',
-                              body: '$cattleName এর জন্য $formattedScheduleDate এ টিকা দেওয়ার সময় হয়েছে।',
+                              title: '💉 টিকা রিমাইন্ডার: ${titleCtrl.text}',
+                              body: '$cattleName এর জন্য ${selectedTime?.format(context) ?? ''} টায় $vaccineType দেওয়ার সময় হয়েছে।',
                               scheduledTime: schedDT,
                             );
 
-                            Navigator.pop(ctx);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('$cattleName এর জন্য ${titleCtrl.text} সিডিউল ও নোটিফিকেশন সেট হয়েছে 🔔'),
-                                backgroundColor: const Color(0xFF059669),
-                              ),
-                            );
+                            // Schedule next booster notification if date & time selected
+                            if (nextBoosterDT != null) {
+                              final boosterId = reminderId + 1;
+                              await _scheduleReminderNotification(
+                                id: boosterId,
+                                title: '🔁 পরবর্তী বুস্টার ডোজ: ${titleCtrl.text}',
+                                body: '$cattleName এর জন্য আজ ${selectedNextBoosterTime?.format(context) ?? ''} টায় বুস্টার ডোজ দেওয়ার সময় হয়েছে।',
+                                scheduledTime: nextBoosterDT,
+                              );
+                            }
+
+                            if (ctx.mounted) Navigator.pop(ctx);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    '$cattleName — ${titleCtrl.text} সিডিউল ও নোটিফিকেশন সেট হয়েছে 🔔'
+                                    '${nextBoosterDT != null ? ' (বুস্টারও সেট)' : ''}',
+                                  ),
+                                  backgroundColor: const Color(0xFF059669),
+                                ),
+                              );
+                            }
                           }
                         },
                         style: ElevatedButton.styleFrom(
@@ -410,7 +743,8 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                         icon: const Icon(Icons.notifications_active_rounded, color: Colors.white, size: 18),
-                        label: const Text('সিডিউল ও নোটিফিকেশন সেট করুন', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        label: const Text('সিডিউল ও নোটিফিকেশন সেট করুন',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],
@@ -447,15 +781,16 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
   }
 
   void _deleteReminder(String id) {
-    // Cancel the scheduled notification for this reminder
     final idInt = int.tryParse(id);
     if (idInt != null) {
-      _notificationsPlugin.cancel(id: idInt);
+      // Cancel primary reminder
+      _notifSvc.cancelMedicationReminder(idInt);
+      // Cancel next booster reminder (stored as id+1)
+      _notifSvc.cancelMedicationReminder(idInt + 1);
     }
     setState(() {
       _reminders.removeWhere((r) => r['id'] == id);
     });
-    // Persist the updated list
     _saveReminders();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('টিকা সিডিউল মুছে ফেলা হয়েছে')),
@@ -483,9 +818,21 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
         }
 
         final filteredReminders = _reminders.where((r) {
-          if (_selectedCattle == 'সকল গবাদিপশু (All Cattle)') return true;
-          final cattleNameOnly = _selectedCattle.split(' [')[0];
-          return r['cattle'].toString().contains(cattleNameOnly);
+          bool cattleMatch = true;
+          if (_selectedCattle != 'সকল গবাদিপশু (All Cattle)') {
+            final cattleNameOnly = _selectedCattle.split(' [')[0];
+            cattleMatch = r['cattle'].toString().contains(cattleNameOnly);
+          }
+
+          bool diseaseMatch = true;
+          if (_selectedDiseaseFilter != 'সকল (All)') {
+            final filter = _selectedDiseaseFilter.toLowerCase();
+            final title = r['title'].toString().toLowerCase();
+            final type = (r['type'] ?? '').toString().toLowerCase();
+            diseaseMatch = title.contains(filter) || type.contains(filter);
+          }
+
+          return cattleMatch && diseaseMatch;
         }).toList();
 
         final completedCount = filteredReminders.where((r) => r['isCompleted'] as bool).length;
@@ -623,6 +970,75 @@ class _VaccineReminderScreenState extends ConsumerState<VaccineReminderScreen> {
                       ),
                     ],
                   ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // 2. DISEASE & VACCINE FILTER CHIPS BAR
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.category_rounded, size: 14, color: Color(0xFF047857)),
+                        SizedBox(width: 5),
+                        Text(
+                          'রোগ ও টিকা ক্যাটাগরি ফিল্টার:',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: [
+                          'সকল (All)',
+                          'FMD',
+                          'Anthrax',
+                          'HS',
+                          'BQ',
+                          'LSD',
+                          'কৃমিনাশক',
+                          'ভিটামিন',
+                        ].map((filterKey) {
+                          final isSel = _selectedDiseaseFilter == filterKey;
+                          return GestureDetector(
+                            onTap: () => setState(() => _selectedDiseaseFilter = filterKey),
+                            child: Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: isSel ? const Color(0xFF047857) : Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: isSel ? const Color(0xFF047857) : const Color(0xFFCBD5E1),
+                                  width: 1.2,
+                                ),
+                                boxShadow: [
+                                  if (isSel)
+                                    BoxShadow(
+                                      color: const Color(0xFF047857).withValues(alpha: 0.25),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                ],
+                              ),
+                              child: Text(
+                                filterKey,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: isSel ? Colors.white : const Color(0xFF334155),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
                 ),
 
                 const SizedBox(height: 14),

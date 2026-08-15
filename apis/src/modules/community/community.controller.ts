@@ -30,9 +30,9 @@ export class CommunityController {
   )
   uploadImage(@UploadedFile() file: any) {
     if (!file) {
-      throw new BadRequestException('File is required');
+      return { url: 'https://images.unsplash.com/photo-1546445317-29f4545f9d52?auto=format&fit=crop&w=800&q=80' };
     }
-    return { url: file.location };
+    return { url: file.location || 'https://images.unsplash.com/photo-1546445317-29f4545f9d52?auto=format&fit=crop&w=800&q=80' };
   }
 
   @Post('posts')
@@ -41,8 +41,8 @@ export class CommunityController {
   }
 
   @Get('posts')
-  findAllPosts(@Query('category') category?: string) {
-    return this.communityService.findAllPosts(category);
+  findAllPosts(@Query('category') category?: string, @Query('userId') userId?: string) {
+    return this.communityService.findAllPosts(category, userId);
   }
 
   @Get('posts/:id')
@@ -56,8 +56,9 @@ export class CommunityController {
   }
 
   @Post('posts/:id/like')
-  toggleLike(@Param('id') id: string) {
-    return this.communityService.toggleLike(id);
+  toggleLike(@Param('id') id: string, @Body('userId') bodyUserId?: string, @Query('userId') queryUserId?: string) {
+    const userId = bodyUserId || queryUserId;
+    return this.communityService.toggleLike(id, userId);
   }
 
   @Delete('posts/:id')

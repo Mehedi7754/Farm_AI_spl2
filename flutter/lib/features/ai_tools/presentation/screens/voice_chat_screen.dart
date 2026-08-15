@@ -176,12 +176,11 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
 
     _flutterTts.setCompletionHandler(() {
       if (mounted) {
-        setState(() {
-          _isSpeaking = false;
-          _statusText = 'কথা বলতে মাইকে চাপুন';
-        });
-        if (_isVoiceMode) {
-          _startListening();
+        if (_ttsQueue.isEmpty) {
+          setState(() {
+            _isSpeaking = false;
+            _statusText = 'কথা বলতে মাইকে চাপুন';
+          });
         }
       }
     });
@@ -310,13 +309,41 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
           }
         },
         listenFor: const Duration(seconds: 30),
-        pauseFor: const Duration(seconds: 3),
+        pauseFor: const Duration(milliseconds: 2000),
         listenMode: stt.ListenMode.dictation,
         cancelOnError: true,
       );
     } catch (e) {
       debugPrint('Listen exception: $e');
       if (mounted) setState(() => _isListening = false);
+    }
+  }
+
+  final List<String> _ttsQueue = [];
+  bool _isTtsProcessing = false;
+
+  void _enqueueAndProcessTts(String sentence) {
+    final clean = _extractCleanJsonAnswer(sentence);
+    if (clean.isEmpty) return;
+    _ttsQueue.add(clean);
+    _processTtsQueue();
+  }
+
+  void _processTtsQueue() async {
+    if (_isTtsProcessing || _ttsQueue.isEmpty) return;
+    _isTtsProcessing = true;
+
+    final nextSentence = _ttsQueue.removeAt(0);
+    try {
+      if (mounted) setState(() => _isSpeaking = true);
+      await _flutterTts.speak(nextSentence);
+    } catch (e) {
+      debugPrint('TTS Queue speak error: $e');
+    } finally {
+      _isTtsProcessing = false;
+      if (_ttsQueue.isNotEmpty) {
+        _processTtsQueue();
+      }
     }
   }
 
@@ -336,6 +363,8 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
 
     setState(() {
       _messages.add({'text': cleanPrompt, 'isUser': 'true'});
+      // Add AI placeholder message for live token streaming
+      _messages.add({'text': '', 'isUser': 'false'});
       _isLoading = true;
       _isListening = false;
       _statusText = 'ভেটেরিনারি উত্তর তৈরি হচ্ছে...';
@@ -345,37 +374,99 @@ class _VoiceChatScreenState extends State<VoiceChatScreen> {
     _scrollToBottom();
     await _saveChatHistory();
 
+    final aiMsgIndex = _messages.length - 1;
+    final StringBuffer accumulatedBuffer = StringBuffer();
+    String sentenceBuffer = '';
+
     try {
-      final data = await ApiClient.voiceChat(cleanPrompt, language: 'bn');
-      if (mounted) {
-        final replyText = data['reply']?.toString() ?? '';
-        if (replyText.isNotEmpty) {
-          final cleanReply = _extractCleanJsonAnswer(replyText);
+      await ApiClient.streamVoiceChat(
+        cleanPrompt,
+        language: 'bn',
+        onChunk: (chunk) {
+          if (!mounted) return;
+          accumulatedBuffer.write(chunk);
+          sentenceBuffer += chunk;
+
+          final fullAccumulated = accumulatedBuffer.toString();
+          final cleanFull = _extractCleanJsonAnswer(fullAccumulated);
+
           setState(() {
             _isLoading = false;
-            _messages.add({'text': cleanReply.isNotEmpty ? cleanReply : replyText, 'isUser': 'false'});
             _statusText = 'উত্তর প্রদান করা হচ্ছে...';
+            _messages[aiMsgIndex]['text'] = cleanFull.isNotEmpty ? cleanFull : fullAccumulated;
+          });
+          _scrollToBottom();
+
+          // Check if a sentence delimiter was hit (। ? ! \n)
+          final RegExp sentenceRegExp = RegExp(r'([^।\?\!\n]+[।\?\!\n])');
+          final matches = sentenceRegExp.allMatches(sentenceBuffer);
+          if (matches.isNotEmpty) {
+            for (final match in matches) {
+              final sentence = match.group(0);
+              if (sentence != null && sentence.trim().isNotEmpty) {
+                _enqueueAndProcessTts(sentence.trim());
+              }
+            }
+            // Keep remaining unpunctuated text in sentenceBuffer
+            final lastMatchEnd = matches.last.end;
+            sentenceBuffer = sentenceBuffer.substring(lastMatchEnd);
+          }
+        },
+        onComplete: (fullText) async {
+          if (!mounted) return;
+          // Handle any leftover text in sentenceBuffer
+          if (sentenceBuffer.trim().isNotEmpty) {
+            _enqueueAndProcessTts(sentenceBuffer.trim());
+            sentenceBuffer = '';
+          }
+
+          final cleanFull = _extractCleanJsonAnswer(fullText);
+          setState(() {
+            _isLoading = false;
+            _statusText = 'উত্তর সম্পন্ন হয়েছে।';
+            _messages[aiMsgIndex]['text'] = cleanFull.isNotEmpty ? cleanFull : fullText;
           });
           _scrollToBottom();
           await _saveChatHistory();
-          _speakReply(cleanReply.isNotEmpty ? cleanReply : replyText);
-          return;
-        }
-
-        setState(() {
-          _isLoading = false;
-          _statusText = 'সার্ভার সংযোগ সমস্যা। আবার চেষ্টা করুন।';
-        });
-      }
+          _isQueryProcessing = false;
+        },
+        onError: (err) async {
+          debugPrint('Streaming error, falling back to standard voiceChat: $err');
+          try {
+            final data = await ApiClient.voiceChat(cleanPrompt, language: 'bn');
+            if (mounted) {
+              final replyText = data['reply']?.toString() ?? '';
+              final cleanReply = _extractCleanJsonAnswer(replyText);
+              setState(() {
+                _isLoading = false;
+                _messages[aiMsgIndex]['text'] = cleanReply.isNotEmpty ? cleanReply : replyText;
+                _statusText = 'উত্তর প্রদান করা হচ্ছে...';
+              });
+              _scrollToBottom();
+              await _saveChatHistory();
+              _speakReply(cleanReply.isNotEmpty ? cleanReply : replyText);
+            }
+          } catch (fallbackErr) {
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+                _messages[aiMsgIndex]['text'] = 'সার্ভার সংযোগ সমস্যা। আবার চেষ্টা করুন।';
+                _statusText = 'ইন্টারনেট বা সার্ভার সমস্যা।';
+              });
+            }
+          } finally {
+            _isQueryProcessing = false;
+          }
+        },
+      );
     } catch (e) {
-      debugPrint('Voice Chat API Error: $e');
+      debugPrint('Voice Chat stream exception: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
           _statusText = 'ইন্টারনেট বা সার্ভার সমস্যা।';
         });
       }
-    } finally {
       _isQueryProcessing = false;
     }
   }

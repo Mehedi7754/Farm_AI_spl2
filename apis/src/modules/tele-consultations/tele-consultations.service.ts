@@ -1,10 +1,16 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { FcmService } from '../webrtc/fcm.service';
 import { randomUUID } from 'crypto';
 
 @Injectable()
 export class TeleConsultationsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(TeleConsultationsService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private fcmService: FcmService,
+  ) {}
 
   // ── Farmer: Book an appointment ─────────────────────────────────────────
 
@@ -48,7 +54,51 @@ export class TeleConsultationsService {
       this.prisma.appointmentSlot.update({ where: { id: slotId }, data: { isBooked: true } }),
     ]);
 
+    // Send push notification to Vet asynchronously
+    this._notifyVetNewBooking(consultation.id, farmerId, realVetId, consultation.farmer?.name).catch((e) => {
+      this.logger.error('Failed to notify vet of new booking', e);
+    });
+
     return consultation;
+  }
+
+  private async _notifyVetNewBooking(consultationId: string, farmerId: string, vetId: string, farmerName?: string) {
+    const vet = await this.prisma.user.findUnique({ where: { id: vetId }, select: { fcmToken: true } });
+    if (vet?.fcmToken) {
+      const name = farmerName || 'একজন কৃষক';
+      await this.fcmService.sendGenericNotification({
+        fcmToken: vet.fcmToken,
+        title: '📅 নতুন অ্যাপয়েন্টমেন্ট বুকিং',
+        body: `${name} আপনার সাথে একটি কনসালটেশন অ্যাপয়েন্টমেন্ট বুক করেছেন।`,
+        data: {
+          type: 'RESERVATION_BOOKED',
+          consultationId,
+          farmerId,
+          farmerName: name,
+        },
+        channelId: 'chat_messages',
+      });
+    }
+  }
+
+  private async _notifyFarmerStatusChange(consultationId: string, farmerId: string, vetName: string, status: 'CONFIRMED' | 'REJECTED') {
+    const farmer = await this.prisma.user.findUnique({ where: { id: farmerId }, select: { fcmToken: true } });
+    if (farmer?.fcmToken) {
+      const isAccepted = status === 'CONFIRMED';
+      await this.fcmService.sendGenericNotification({
+        fcmToken: farmer.fcmToken,
+        title: isAccepted ? '✅ অ্যাপয়েন্টমেন্ট নিশ্চিত হয়েছে' : '❌ অ্যাপয়েন্টমেন্ট বাতিল',
+        body: isAccepted
+          ? `ডাঃ ${vetName} আপনার কনসালটেশন অ্যাপয়েন্টমেন্ট গ্রহণ করেছেন।`
+          : `ডাঃ ${vetName} আপনার অ্যাপয়েন্টমেন্ট প্রস্তাব বাতিল করেছেন।`,
+        data: {
+          type: isAccepted ? 'RESERVATION_ACCEPTED' : 'RESERVATION_REJECTED',
+          consultationId,
+          vetName,
+        },
+        channelId: 'chat_messages',
+      });
+    }
   }
 
   // ── Vet: Accept ──────────────────────────────────────────────────────────
@@ -56,11 +106,17 @@ export class TeleConsultationsService {
   async accept(id: string) {
     const c = await this._findOne(id);
     if (c.status !== 'PENDING') throw new BadRequestException('Only PENDING consultations can be accepted');
-    return this.prisma.teleConsultation.update({
+    const updated = await this.prisma.teleConsultation.update({
       where: { id },
       data: { status: 'CONFIRMED' },
       include: { farmer: { select: { id: true, name: true } }, vet: { select: { id: true, name: true } }, slot: true },
     });
+
+    this._notifyFarmerStatusChange(id, updated.farmerId, updated.vet?.name || 'ডাক্তার', 'CONFIRMED').catch((e) => {
+      this.logger.error('Failed to notify farmer of accepted reservation', e);
+    });
+
+    return updated;
   }
 
   // ── Vet: Reject ──────────────────────────────────────────────────────────
@@ -70,11 +126,17 @@ export class TeleConsultationsService {
     if (c.slotId) {
       await this.prisma.appointmentSlot.update({ where: { id: c.slotId }, data: { isBooked: false } });
     }
-    return this.prisma.teleConsultation.update({
+    const updated = await this.prisma.teleConsultation.update({
       where: { id },
       data: { status: 'REJECTED' },
       include: { farmer: { select: { id: true, name: true } }, vet: { select: { id: true, name: true } } },
     });
+
+    this._notifyFarmerStatusChange(id, updated.farmerId, updated.vet?.name || 'ডাক্তার', 'REJECTED').catch((e) => {
+      this.logger.error('Failed to notify farmer of rejected reservation', e);
+    });
+
+    return updated;
   }
 
   // ── Complete ─────────────────────────────────────────────────────────────
@@ -99,6 +161,7 @@ export class TeleConsultationsService {
   // ── My consultations ─────────────────────────────────────────────────────
 
   async findMyConsultations(userId: string, role: 'FARMER' | 'VET') {
+    await this.autoExpireStaleConsultations();
     const where = role === 'FARMER' ? { farmerId: userId } : { vetId: userId };
     return this.prisma.teleConsultation.findMany({
       where,
@@ -111,7 +174,26 @@ export class TeleConsultationsService {
     });
   }
 
+  async autoExpireStaleConsultations() {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const expired = await this.prisma.teleConsultation.findMany({
+      where: {
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        scheduledTime: { lt: twoHoursAgo },
+      },
+      select: { id: true, slotId: true },
+    });
+
+    for (const c of expired) {
+      if (c.slotId) {
+        await this.prisma.appointmentSlot.update({ where: { id: c.slotId }, data: { isBooked: false } }).catch(() => {});
+      }
+      await this.prisma.teleConsultation.update({ where: { id: c.id }, data: { status: 'CANCELLED' } }).catch(() => {});
+    }
+  }
+
   async findAll(farmerId?: string, vetId?: string) {
+    await this.autoExpireStaleConsultations();
     const where: any = {};
     if (farmerId) where.farmerId = farmerId;
     if (vetId) where.vetId = vetId;
@@ -131,12 +213,44 @@ export class TeleConsultationsService {
     return this.prisma.teleConsultation.update({ where: { id }, data: dto, include: { farmer: true, vet: true } });
   }
 
-  async cancel(id: string) {
+  async cancel(id: string, cancelledByUserId?: string) {
     const c = await this._findOne(id);
-    if (c.slotId) {
-      await this.prisma.appointmentSlot.update({ where: { id: c.slotId }, data: { isBooked: false } });
+    if (c.status === 'COMPLETED' || c.status === 'IN_PROGRESS') {
+      throw new BadRequestException('Cannot cancel a consultation that is already in progress or completed');
     }
-    return this.prisma.teleConsultation.update({ where: { id }, data: { status: 'CANCELLED' } });
+    if (c.status === 'CANCELLED') {
+      throw new BadRequestException('Consultation is already cancelled');
+    }
+
+    if (c.slotId) {
+      await this.prisma.appointmentSlot.update({ where: { id: c.slotId }, data: { isBooked: false } }).catch(() => {});
+    }
+
+    const updated = await this.prisma.teleConsultation.update({
+      where: { id },
+      data: { status: 'CANCELLED' },
+      include: { farmer: { select: { id: true, name: true, fcmToken: true } }, vet: { select: { id: true, name: true, fcmToken: true } } },
+    });
+
+    // Notify opposite party
+    const isFarmerCancelling = cancelledByUserId ? cancelledByUserId === c.farmerId : true;
+    const recipientToken = isFarmerCancelling ? updated.vet?.fcmToken : updated.farmer?.fcmToken;
+    const cancellerName = isFarmerCancelling ? updated.farmer?.name || 'কৃষক' : `ডাঃ ${updated.vet?.name || 'ডাক্তার'}`;
+
+    if (recipientToken) {
+      this.fcmService.sendGenericNotification({
+        fcmToken: recipientToken,
+        title: '❌ অ্যাপয়েন্টমেন্ট বাতিল করা হয়েছে',
+        body: `${cancellerName} কনসালটেশন অ্যাপয়েন্টমেন্টটি বাতিল করেছেন।`,
+        data: {
+          type: 'RESERVATION_CANCELLED',
+          consultationId: id,
+        },
+        channelId: 'chat_messages',
+      }).catch((e) => this.logger.error('Failed to notify cancellation', e));
+    }
+
+    return updated;
   }
 
   private async _findOne(id: string) {

@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../../../../core/network/api_client.dart';
 import '../../../../core/services/location_service.dart';
+import '../../../../core/services/notification_service.dart';
+import '../../../../core/services/notification_store.dart';
 
 class WeatherState {
   final Map<String, dynamic>? data;
@@ -114,6 +116,59 @@ class WeatherNotifier extends StateNotifier<WeatherState> {
         isLoading: false,
         error: null,
       );
+
+      // ── Push notification triggers ────────────────────────────────────────
+      final isStorm = liveWeather['isStormWarning'] as bool? ?? false;
+      final isHeat = liveWeather['isHeatStress'] as bool? ?? false;
+      final advice = liveWeather['agriculturalAdvice'] as String? ?? '';
+      final temp = (liveWeather['currentTemperature'] as num?)?.toDouble() ?? 30.0;
+      final humidity = (liveWeather['humidity'] as num?)?.toInt() ?? 65;
+      final notifSvc = NotificationService();
+      final store = NotificationStore();
+
+      // Get today's precipitation from forecast
+      final forecastList = liveWeather['forecast'] as List<dynamic>? ?? [];
+      final todayPrecip = forecastList.isNotEmpty
+          ? (forecastList[0]['precipitation'] as num?)?.toDouble() ?? 0.0
+          : 0.0;
+
+      if (isStorm) {
+        final t = '⛈️ ঝড়ের সতর্কতা — $resolvedName';
+        final b = advice.isNotEmpty
+            ? advice
+            : 'তাপমাত্রা ${temp.round()}°C। ঝড়ের সম্ভাবনা। পশুকে নিরাপদ স্থানে রাখুন।';
+        await notifSvc.showWeatherAlert(title: t, body: b, payload: 'WEATHER_STORM');
+        await store.push(id: 'weather_storm_${DateTime.now().millisecondsSinceEpoch}', type: 'weather', title: t, body: b);
+      } else if (isHeat) {
+        final t = '🌡️ তাপ চাপ সতর্কতা — ${temp.round()}°C';
+        final b = advice.isNotEmpty
+            ? advice
+            : 'তাপমাত্রা ${temp.round()}°C, আর্দ্রতা $humidity%। পশুদের ছায়ায় রাখুন ও পানি দিন।';
+        await notifSvc.showWeatherAlert(title: t, body: b, payload: 'WEATHER_HEAT');
+        await store.push(id: 'weather_heat_${DateTime.now().millisecondsSinceEpoch}', type: 'weather', title: t, body: b);
+      } else if (todayPrecip > 10) {
+        final t = '🌧️ ভারী বৃষ্টিপাতের সতর্কতা — $resolvedName';
+        final b = 'আজ ${todayPrecip.toStringAsFixed(1)} মিমি বৃষ্টির সম্ভাবনা। তাপমাত্রা ${temp.round()}°C। পশুকে শেডে রাখুন।';
+        await notifSvc.showWeatherAlert(title: t, body: b, payload: 'WEATHER_RAIN');
+        await store.push(id: 'weather_rain_${DateTime.now().millisecondsSinceEpoch}', type: 'weather', title: t, body: b);
+      }
+
+      // Schedule tomorrow's forecast notification at 06:30 AM
+      if (forecastList.length > 1) {
+        final tomorrow = forecastList[1];
+        final tMaxTemp = (tomorrow['tempMax'] as num?)?.toDouble() ?? temp;
+        final tMinTemp = (tomorrow['tempMin'] as num?)?.toDouble() ?? (temp - 5);
+        final tPrecip = (tomorrow['precipitation'] as num?)?.toDouble() ?? 0.0;
+        final tSummary =
+            'আগামীকাল তাপমাত্রা ${tMaxTemp.round()}°/${tMinTemp.round()}°C'
+            '${tPrecip > 2 ? ', বৃষ্টির সম্ভাবনা ${tPrecip.toStringAsFixed(1)} মিমি।' : '।'}';
+        await notifSvc.scheduleTomorrowWeatherForecast(
+          weatherSummary: tSummary,
+          location: resolvedName,
+          hour: 6,
+          minute: 30,
+        );
+      }
     } catch (e) {
       if (state.data == null) {
         state = state.copyWith(isLoading: false, error: e.toString());
