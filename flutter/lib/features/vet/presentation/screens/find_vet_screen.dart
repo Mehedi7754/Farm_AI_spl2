@@ -518,29 +518,96 @@ class _BookingCard extends StatelessWidget {
                     icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
                     label: const Text('চ্যাট', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFF1565C0)),
+                      side: const BorderSide(color: Color(0xFF047857)),
+                      foregroundColor: const Color(0xFF047857),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 10),
-              Expanded(
-                child: SizedBox(
-                  height: 38,
-                  child: ElevatedButton.icon(
-                    onPressed: null, // Greyed out for farmers
-                    icon: const Icon(Icons.videocam_off_rounded, size: 16),
-                    label: const Text('কল করুন', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey.shade100,
-                      foregroundColor: Colors.grey.shade400,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      elevation: 0,
+              if (status == 'PENDING' || status == 'CONFIRMED') ...[
+                Expanded(
+                  child: SizedBox(
+                    height: 38,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('অ্যাপয়েন্টমেন্ট বাতিল করবেন?'),
+                            content: const Text('আপনি কি নিশ্চিত যে এই অ্যাপয়েন্টমেন্টটি বাতিল করতে চান?'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('না')),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
+                                child: const Text('হ্যাঁ, বাতিল করুন'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          final currentUserId = ApiClient.currentUser?['id'];
+                          await ApiClient.cancelConsultation(booking['id'], cancelledBy: currentUserId);
+                          onRefresh();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('অ্যাপয়েন্টমেন্ট বাতিল করা হয়েছে')),
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.cancel_outlined, size: 16, color: Color(0xFFDC2626)),
+                      label: const Text('বাতিল করুন', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFDC2626))),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFDC2626)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ] else ...[
+                Expanded(
+                  child: SizedBox(
+                    height: 38,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('রেকর্ড মুছে ফেলবেন?'),
+                            content: const Text('আপনি কি নিশ্চিত যে এই রেকর্ডটি তালিকা থেকে স্থায়ীভাবে মুছে ফেলতে চান?'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('না')),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
+                                child: const Text('মুছে ফেলুন'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          await ApiClient.deleteConsultation(booking['id']);
+                          onRefresh();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('রেকর্ড মুছে ফেলা হয়েছে')),
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Color(0xFF64748B)),
+                      label: const Text('মুছে ফেলুন', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           )
         ],

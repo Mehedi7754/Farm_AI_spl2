@@ -61,8 +61,23 @@ export class TeleConsultationsController {
     return this.svc.update(id, dto);
   }
 
-  @Delete(':id')
-  cancel(@Param('id') id: string, @Query('cancelledBy') cancelledBy?: string) {
+  @Patch(':id/cancel')
+  cancelPatch(@Param('id') id: string, @Query('cancelledBy') cancelledBy?: string) {
     return this.svc.cancel(id, cancelledBy);
+  }
+
+  @Post(':id/cancel')
+  cancelPost(@Param('id') id: string, @Query('cancelledBy') cancelledBy?: string) {
+    return this.svc.cancel(id, cancelledBy);
+  }
+
+  @Delete(':id/permanent')
+  deletePermanent(@Param('id') id: string) {
+    return this.svc.deletePermanent(id);
+  }
+
+  @Delete(':id')
+  deleteDirect(@Param('id') id: string) {
+    return this.svc.deletePermanent(id);
   }
 }

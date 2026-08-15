@@ -253,6 +253,20 @@ export class TeleConsultationsService {
     return updated;
   }
 
+  async deletePermanent(id: string) {
+    const c = await this.prisma.teleConsultation.findUnique({
+      where: { id },
+    });
+    if (!c) {
+      return { success: true, message: `Consultation ${id} already deleted` };
+    }
+    if (c.slotId) {
+      await this.prisma.appointmentSlot.update({ where: { id: c.slotId }, data: { isBooked: false } }).catch(() => {});
+    }
+    await this.prisma.teleConsultation.delete({ where: { id } });
+    return { success: true, message: `Consultation ${id} permanently deleted` };
+  }
+
   private async _findOne(id: string) {
     const c = await this.prisma.teleConsultation.findUnique({
       where: { id },

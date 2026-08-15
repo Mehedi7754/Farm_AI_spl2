@@ -823,6 +823,17 @@ class ApiClient {
     return _processResponse(response);
   }
 
+  static Future<Map<String, dynamic>> cancelConsultation(String id, {String? cancelledBy}) async {
+    final query = cancelledBy != null ? '?cancelledBy=$cancelledBy' : '';
+    final response = await http.patch(Uri.parse('$baseUrl/tele-consultations/$id/cancel$query'), headers: _headers).timeout(const Duration(seconds: 10));
+    return _processResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> deleteConsultation(String id) async {
+    final response = await http.delete(Uri.parse('$baseUrl/tele-consultations/$id/permanent'), headers: _headers).timeout(const Duration(seconds: 10));
+    return _processResponse(response);
+  }
+
   static Future<Map<String, dynamic>> completeConsultation(String id, {String? prescription}) async {
     final response = await http.patch(
       Uri.parse('$baseUrl/tele-consultations/$id/complete'),

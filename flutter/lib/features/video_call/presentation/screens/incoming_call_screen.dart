@@ -230,18 +230,21 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
 
                 // Caller name
                 Text(
-                  'ডাঃ ${widget.callerName}',
+                  widget.callerName.startsWith('ডাঃ') || widget.callerName.startsWith('Dr.')
+                      ? widget.callerName
+                      : 'ডাঃ ${widget.callerName}',
+                  textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 26,
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
                     letterSpacing: -0.3,
                   ),
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'ভিডিও কল করছেন...',
-                  style: TextStyle(color: Colors.white54, fontSize: 15),
+                  'ইনকামিং ভিডিও কল...',
+                  style: TextStyle(color: Color(0xFFA7F3D0), fontSize: 15, fontWeight: FontWeight.w600),
                 ),
 
                 const SizedBox(height: 12),
