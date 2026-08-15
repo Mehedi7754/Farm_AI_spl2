@@ -15,10 +15,43 @@ export class SmartCollarsService {
     });
   }
 
+  private checkIsOnline(updatedAt: Date | null): boolean {
+    if (!updatedAt) return false;
+    const diffSeconds = (Date.now() - new Date(updatedAt).getTime()) / 1000;
+    // Consider device online ONLY IF it sent a telemetry/location ping within the last 120 seconds (2 mins)
+    return diffSeconds <= 120;
+  }
+
+  private formatTimeAgo(date: Date | null): string {
+    if (!date) return 'কখনো সক্রিয় হয়নি';
+    const diffMs = Date.now() - new Date(date).getTime();
+    const diffSec = Math.max(0, Math.floor(diffMs / 1000));
+    if (diffSec < 60) return 'এইমাত্র';
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin} মিনিট আগে`;
+    const diffHour = Math.floor(diffMin / 60);
+    if (diffHour < 24) return `${diffHour} ঘণ্টা আগে`;
+    const diffDay = Math.floor(diffHour / 24);
+    return `${diffDay} দিন আগে`;
+  }
+
+  private formatCollarResponse(collar: any) {
+    if (!collar) return null;
+    const isOnline = this.checkIsOnline(collar.updatedAt);
+    const lastActiveAgo = this.formatTimeAgo(collar.updatedAt);
+    return {
+      ...collar,
+      isOnline,
+      lastActive: collar.updatedAt ? new Date(collar.updatedAt).toISOString() : null,
+      lastActiveAgo,
+    };
+  }
+
   async findAll() {
-    return this.prisma.smartCollar.findMany({
+    const collars = await this.prisma.smartCollar.findMany({
       include: { livestock: true },
     });
+    return collars.map((c) => this.formatCollarResponse(c));
   }
 
   async findOne(id: string) {
@@ -28,7 +61,7 @@ export class SmartCollarsService {
     });
 
     if (!collar) throw new NotFoundException(`Smart Collar with ID ${id} not found`);
-    return collar;
+    return this.formatCollarResponse(collar);
   }
 
   async findByLivestock(livestockId: string) {
@@ -38,14 +71,7 @@ export class SmartCollarsService {
     });
 
     if (!collar) throw new NotFoundException(`Smart Collar for Livestock ${livestockId} not found`);
-    return collar;
-  }
-
-  private checkIsOnline(updatedAt: Date | null): boolean {
-    if (!updatedAt) return false;
-    const diffSeconds = (Date.now() - new Date(updatedAt).getTime()) / 1000;
-    // Consider device online ONLY IF it sent a telemetry/location ping within the last 120 seconds (2 mins)
-    return diffSeconds <= 120;
+    return this.formatCollarResponse(collar);
   }
 
   async findByDeviceCode(deviceCode: string) {
@@ -56,7 +82,7 @@ export class SmartCollarsService {
 
     if (!collar) throw new NotFoundException(`Smart Collar with device code ${deviceCode} not found`);
     
-    return collar;
+    return this.formatCollarResponse(collar);
   }
 
   async update(id: string, dto: any) {

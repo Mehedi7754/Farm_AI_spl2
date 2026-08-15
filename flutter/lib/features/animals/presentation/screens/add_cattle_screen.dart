@@ -6,7 +6,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '../../../../core/l10n/strings_bn.dart';
 import '../../../../core/network/api_client.dart';
 import '../providers/livestock_provider.dart';
 
@@ -27,7 +26,9 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
   double? deviceLng;
   bool hasGpsLock = false;
   bool deviceIsOnline = false;
-  int deviceBattery = 100;
+  int deviceBattery = 0;
+  String? lastActiveAgo;
+  String? lastActiveTime;
 
   String selectedType = 'দুগ্ধজাত গাভী (Dairy)';
   String selectedGender = 'গাভী (Female)';
@@ -252,9 +253,15 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
       final result = await ApiClient.getDeviceLocation(code);
       if (result != null) {
         final isOnline = result['isOnline'] == true;
+        final battery = (result['batteryLevel'] as num?)?.toInt() ?? 0;
+        final activeAgo = result['lastActiveAgo']?.toString() ?? 'অফলাইন';
+        final activeTime = result['lastActive']?.toString();
+
         setState(() {
           deviceIsOnline = isOnline;
-          deviceBattery = (result['batteryLevel'] as num?)?.toInt() ?? 100;
+          deviceBattery = battery;
+          lastActiveAgo = activeAgo;
+          lastActiveTime = activeTime;
           deviceLat = (result['latitude'] as num?)?.toDouble() ?? 22.85384;
           deviceLng = (result['longitude'] as num?)?.toDouble() ?? 91.094149;
           hasGpsLock = (deviceLat != 0.0 && deviceLat != null && deviceLng != 0.0 && deviceLng != null);
@@ -264,8 +271,10 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(isOnline ? 'স্মার্ট কলার $code সফলভাবে অনলাইন এবং ভেরিফাই হয়েছে! 🛰️' : 'ডিভাইসটি পাওয়া গিয়েছে কিন্তু অফলাইন আছে।'),
-              backgroundColor: isOnline ? const Color(0xFF064E3B) : const Color(0xFFD97706),
+              content: Text(isOnline
+                  ? 'স্মার্ট কলার $code অনলাইন ও সক্রিয়! 🟢 (ব্যাটারি: $battery%)'
+                  : 'কলার $code অফলাইন 🔴 (শেষ সক্রিয়: $activeAgo, ব্যাটারি: $battery%)'),
+              backgroundColor: isOnline ? const Color(0xFF064E3B) : const Color(0xFF991B1B),
             ),
           );
         }
@@ -277,7 +286,7 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
           });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('ডিভাইস "$code" পাওয়া যায়নি। অনুগ্রহ করে কোড চেক করুন।'),
+              content: Text('ডিভাইস "$code" ডাটাবেজে পাওয়া যায়নি। কোড চেক করুন।'),
               backgroundColor: const Color(0xFFDC2626),
             ),
           );
@@ -520,68 +529,126 @@ class _AddCattleScreenState extends ConsumerState<AddCattleScreen> {
                     ),
                   ],
 
-                  if (isVerified && deviceLat != null && deviceLng != null) ...[
+                  if (isVerified) ...[
                     const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.circle, size: 8, color: deviceIsOnline ? Colors.green : Colors.orange),
-                            const SizedBox(width: 4),
-                            Text(
-                              deviceIsOnline ? 'ডিভাইস অনলাইন (Active) 🟢' : 'ডিভাইস অফলাইন 🔴',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: deviceIsOnline ? Colors.green : Colors.orange),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          '🔋 ব্যাটারি: $deviceBattery%',
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
+                    // Real Telemetry Status Box
                     Container(
-                      height: 160,
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
+                        color: deviceIsOnline ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                        border: Border.all(
+                          color: deviceIsOnline ? const Color(0xFF86EFAC) : const Color(0xFFFECACA),
+                        ),
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: FlutterMap(
-                          options: MapOptions(
-                            initialCenter: LatLng(deviceLat!, deviceLng!),
-                            initialZoom: 14.5,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: BoxDecoration(
+                                      color: deviceIsOnline ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    deviceIsOnline ? 'কলার সক্রিয় ও অনলাইন (Active)' : 'কলার বন্ধ / অফলাইন (Inactive)',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: deviceIsOnline ? const Color(0xFF166534) : const Color(0xFF991B1B),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  Icon(
+                                    deviceBattery > 50
+                                        ? Icons.battery_full_rounded
+                                        : (deviceBattery > 20 ? Icons.battery_3_bar_rounded : Icons.battery_alert_rounded),
+                                    size: 16,
+                                    color: deviceBattery > 20 ? const Color(0xFF1E293B) : Colors.red,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '$deviceBattery%',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w900,
+                                      color: deviceBattery > 20 ? const Color(0xFF1E293B) : Colors.red,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
-                          children: [
-                            TileLayer(
-                              urlTemplate: 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-                            ),
-                            MarkerLayer(
-                              markers: [
-                                Marker(
-                                  point: LatLng(deviceLat!, deviceLng!),
-                                  child: const Icon(Icons.location_on_rounded, color: Colors.red, size: 28),
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                deviceIsOnline ? '🟢 লাইভ সিগন্যাল সচল' : 'সর্বশেষ সক্রিয়: ${lastActiveAgo ?? "অফলাইন"}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: deviceIsOnline ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
                                 ),
-                              ],
-                            ),
-                          ],
-                        ),
+                              ),
+                              if (deviceLat != null && deviceLng != null)
+                                Text(
+                                  hasGpsLock ? '🛰️ জিপিএস ট্র্যাকড' : 'GPS সিগন্যাল নেই',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: hasGpsLock ? const Color(0xFF0F766E) : const Color(0xFFD97706),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Icon(hasGpsLock ? Icons.gps_fixed_rounded : Icons.satellite_alt_rounded, size: 14, color: hasGpsLock ? const Color(0xFF059669) : const Color(0xFFD97706)),
-                        const SizedBox(width: 4),
-                        Text(
-                          hasGpsLock ? 'জিপিএস সিগন্যাল সচল 🛰️' : 'GPS সিগন্যাল পাওয়া যাচ্ছে না',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: hasGpsLock ? const Color(0xFF059669) : const Color(0xFF92400E)),
+
+                    if (deviceLat != null && deviceLng != null) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        height: 150,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFCBD5E1)),
                         ),
-                      ],
-                    ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: FlutterMap(
+                            options: MapOptions(
+                              initialCenter: LatLng(deviceLat!, deviceLng!),
+                              initialZoom: 14.5,
+                            ),
+                            children: [
+                              TileLayer(
+                                urlTemplate: 'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                              ),
+                              MarkerLayer(
+                                markers: [
+                                  Marker(
+                                    point: LatLng(deviceLat!, deviceLng!),
+                                    child: const Icon(Icons.location_on_rounded, color: Colors.red, size: 28),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ],
               ),

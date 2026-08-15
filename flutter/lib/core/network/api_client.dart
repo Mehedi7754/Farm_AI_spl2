@@ -569,27 +569,6 @@ class ApiClient {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data is Map<String, dynamic>) {
-          // Cross-reference the general collars list due to a backend detail endpoint bug
-          bool listOnlineStatus = false;
-          try {
-            final listResponse = await http.get(
-              Uri.parse('$baseUrl/smart-collars'),
-              headers: _headers,
-            ).timeout(const Duration(seconds: 5));
-            if (listResponse.statusCode == 200) {
-              final List<dynamic> listData = jsonDecode(listResponse.body);
-              final matched = listData.firstWhere(
-                (c) => c['deviceCode'].toString() == deviceCode,
-                orElse: () => null,
-              );
-              if (matched != null) {
-                listOnlineStatus = matched['isOnline'] == true;
-              }
-            }
-          } catch (e) {
-            debugPrint('Error cross-referencing collars list: $e');
-          }
-
           // Fetch latest telemetry location record (speed, satellites, altitude, fixQuality)
           double speed = 0.0;
           double altitude = 0.0;
@@ -614,6 +593,11 @@ class ApiClient {
             debugPrint('Error fetching location telemetry: $e');
           }
 
+          final isOnline = data['isOnline'] == true;
+          final battery = (data['batteryLevel'] as num?)?.toInt() ?? 0;
+          final lastActiveAgo = data['lastActiveAgo']?.toString() ?? 'অফলাইন';
+          final lastActive = data['lastActive']?.toString() ?? data['updatedAt']?.toString();
+
           return {
             'id': data['id'],
             'deviceCode': data['deviceCode'],
@@ -621,8 +605,10 @@ class ApiClient {
             'longitude': (data['lastLongitude'] as num?)?.toDouble() ?? 0.0,
             'lastLatitude': (data['lastLatitude'] as num?)?.toDouble() ?? 0.0,
             'lastLongitude': (data['lastLongitude'] as num?)?.toDouble() ?? 0.0,
-            'batteryLevel': data['batteryLevel'] ?? 100,
-            'isOnline': (data['isOnline'] == true) || listOnlineStatus,
+            'batteryLevel': battery,
+            'isOnline': isOnline,
+            'lastActive': lastActive,
+            'lastActiveAgo': lastActiveAgo,
             'updatedAt': data['updatedAt'],
             'speed': speed,
             'altitude': altitude,
