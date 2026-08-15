@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Query } from '@nestjs/common';
 import { ChatService } from './chat.service';
 
 @Controller('chat')
@@ -30,5 +30,13 @@ export class ChatController {
   @Get('unread/:userId')
   async getUnreadSummary(@Param('userId') userId: string) {
     return this.chatService.getUnreadSummary(userId);
+  }
+
+  @Patch('mark-read')
+  async markAsRead(
+    @Body('receiverId') receiverId: string,
+    @Body('senderId') senderId: string,
+  ) {
+    return this.chatService.markAsRead(receiverId, senderId);
   }
 }

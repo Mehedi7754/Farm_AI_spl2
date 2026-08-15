@@ -909,6 +909,18 @@ class ApiClient {
     }
   }
 
+  static Future<void> markChatAsRead({required String senderId}) async {
+    final receiverId = _currentUser?['id'];
+    if (receiverId == null || senderId.isEmpty) return;
+    try {
+      await http.patch(
+        Uri.parse('$baseUrl/chat/mark-read'),
+        headers: _headers,
+        body: jsonEncode({'receiverId': receiverId, 'senderId': senderId}),
+      ).timeout(const Duration(seconds: 10));
+    } catch (_) {}
+  }
+
   // ── Push Notifications ────────────────────────────────────────────────────
   
   static Future<void> updateFcmToken(String token) async {

@@ -29,6 +29,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _loadMessages();
     _startPolling();
+    // Mark messages from this sender as read on backend (so they won't re-notify)
+    ApiClient.markChatAsRead(senderId: widget.otherUserId).catchError((_) {});
   }
 
   @override

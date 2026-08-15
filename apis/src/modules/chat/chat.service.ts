@@ -17,6 +17,7 @@ export class ChatService {
         senderId,
         receiverId,
         content,
+        isRead: false,
       },
     });
 
@@ -58,7 +59,7 @@ export class ChatService {
   }
 
   async getChatHistory(userId1: string, userId2: string) {
-    return this.prisma.chatMessage.findMany({
+    const messages = await this.prisma.chatMessage.findMany({
       where: {
         OR: [
           { senderId: userId1, receiverId: userId2 },
@@ -69,6 +70,18 @@ export class ChatService {
         createdAt: 'asc',
       },
     });
+
+    // Mark messages received by userId1 from userId2 as read
+    await this.prisma.chatMessage.updateMany({
+      where: {
+        senderId: userId2,
+        receiverId: userId1,
+        isRead: false,
+      },
+      data: { isRead: true },
+    });
+
+    return messages;
   }
 
   async getChatList(userId: string) {
@@ -102,14 +115,22 @@ export class ChatService {
     return Array.from(conversations.values());
   }
 
+  /**
+   * Returns unread messages grouped by sender for the given userId (receiver).
+   * Each entry includes: senderId, senderName, senderRole, lastMessage, lastMessageId, count.
+   */
   async getUnreadSummary(userId: string) {
     const messages = await this.prisma.chatMessage.findMany({
-      where: { receiverId: userId },
+      where: {
+        receiverId: userId,
+        isRead: false,
+      },
       orderBy: { createdAt: 'desc' },
       include: {
-        sender: true,
+        sender: {
+          select: { id: true, name: true, role: true },
+        },
       },
-      take: 50,
     });
 
     const senderMap = new Map<string, any>();
@@ -120,7 +141,8 @@ export class ChatService {
           senderName: msg.sender?.name || 'ব্যবহারকারী',
           senderRole: msg.sender?.role,
           lastMessage: msg.content,
-          createdAt: msg.createdAt,
+          lastMessageId: msg.id,
+          createdAt: msg.createdAt.toISOString(),
           count: 1,
         });
       } else {
@@ -129,5 +151,15 @@ export class ChatService {
     }
 
     return Array.from(senderMap.values());
+  }
+
+  /**
+   * Mark all messages from senderId to receiverId as read.
+   */
+  async markAsRead(receiverId: string, senderId: string) {
+    return this.prisma.chatMessage.updateMany({
+      where: { receiverId, senderId, isRead: false },
+      data: { isRead: true },
+    });
   }
 }
