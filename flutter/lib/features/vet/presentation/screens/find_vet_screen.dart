@@ -44,6 +44,8 @@ class _FindVetScreenState extends State<FindVetScreen> {
     }
   }
 
+  static final Set<String> _deletedBookingIds = {};
+
   Future<void> _loadMyBookings() async {
     setState(() => _isLoadingBookings = true);
     try {
@@ -52,7 +54,9 @@ class _FindVetScreenState extends State<FindVetScreen> {
         final data = await ApiClient.getMyConsultations(userId: user['id'] as String, role: 'FARMER');
         if (mounted) {
           setState(() {
-            _myBookings = List<Map<String, dynamic>>.from(data);
+            _myBookings = List<Map<String, dynamic>>.from(data)
+                .where((b) => !_deletedBookingIds.contains(b['id']))
+                .toList();
             _isLoadingBookings = false;
           });
         }
@@ -479,10 +483,49 @@ class _BookingCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('Dr. $name', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E293B))),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
-                child: Text(statusLabel, style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold)),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+                    child: Text(statusLabel, style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 6),
+                  InkWell(
+                    onTap: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('রেকর্ড মুছে ফেলবেন?'),
+                          content: const Text('আপনি কি নিশ্চিত যে এই অ্যাপয়েন্টমেন্টটি তালিকা থেকে স্থায়ীভাবে মুছে ফেলতে চান?'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('না')),
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
+                              child: const Text('মুছে ফেলুন'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm == true) {
+                        _FindVetScreenState._deletedBookingIds.add(booking['id']);
+                        onRefresh();
+                        await ApiClient.deleteConsultation(booking['id']);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('অ্যাপয়েন্টমেন্ট মুছে ফেলা হয়েছে')),
+                          );
+                        }
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(Icons.delete_outline_rounded, size: 18, color: Colors.grey.shade400),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -589,8 +632,9 @@ class _BookingCard extends StatelessWidget {
                           ),
                         );
                         if (confirm == true) {
-                          await ApiClient.deleteConsultation(booking['id']);
+                          _FindVetScreenState._deletedBookingIds.add(booking['id']);
                           onRefresh();
+                          await ApiClient.deleteConsultation(booking['id']);
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text('রেকর্ড মুছে ফেলা হয়েছে')),

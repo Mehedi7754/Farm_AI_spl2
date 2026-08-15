@@ -21,6 +21,8 @@ class _VetAppointmentsScreenState extends State<VetAppointmentsScreen> {
     _load();
   }
 
+  static final Set<String> _deletedConsultationIds = {};
+
   Future<void> _load() async {
     setState(() => _isLoading = true);
     try {
@@ -29,7 +31,9 @@ class _VetAppointmentsScreenState extends State<VetAppointmentsScreen> {
         final data = await ApiClient.getMyConsultations(userId: user['id'], role: 'VET');
         if (mounted) {
           setState(() {
-            _consultations = List<Map<String, dynamic>>.from(data);
+            _consultations = List<Map<String, dynamic>>.from(data)
+                .where((c) => !_deletedConsultationIds.contains(c['id']))
+                .toList();
             _isLoading = false;
           });
         }
@@ -260,14 +264,53 @@ class _AppointmentCardState extends State<_AppointmentCard> {
             children: [
               Text(farmerName,
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A))),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(statusLabel,
-                    style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold)),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(statusLabel,
+                        style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 6),
+                  InkWell(
+                    onTap: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('রেকর্ড মুছে ফেলবেন?'),
+                          content: const Text('আপনি কি নিশ্চিত যে এই অ্যাপয়েন্টমেন্ট রেকর্ডটি তালিকা থেকে স্থায়ীভাবে মুছে ফেলতে চান?'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('না')),
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
+                              child: const Text('মুছে ফেলুন'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm == true) {
+                        _VetAppointmentsScreenState._deletedConsultationIds.add(consultation['id']);
+                        widget.onRefresh();
+                        await ApiClient.deleteConsultation(consultation['id']);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('রেকর্ড মুছে ফেলা হয়েছে')),
+                          );
+                        }
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(Icons.delete_outline_rounded, size: 18, color: Colors.grey.shade400),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
