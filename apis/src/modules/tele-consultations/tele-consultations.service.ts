@@ -32,6 +32,18 @@ export class TeleConsultationsService {
       throw new BadRequestException('Slot does not belong to this vet');
     }
 
+    let scheduledTime = slot.date;
+    if (slot.startTime) {
+      try {
+        const [hours, minutes] = slot.startTime.split(':').map(Number);
+        if (!isNaN(hours) && !isNaN(minutes)) {
+          const d = new Date(slot.date);
+          d.setHours(hours, minutes, 0, 0);
+          scheduledTime = d;
+        }
+      } catch (_) {}
+    }
+
     const roomId = `room_${randomUUID()}`;
 
     const [consultation] = await this.prisma.$transaction([
@@ -40,7 +52,7 @@ export class TeleConsultationsService {
           farmerId,
           vetId: realVetId,
           slotId,
-          scheduledTime: slot.date,
+          scheduledTime,
           notes,
           roomId,
           status: 'PENDING',
@@ -162,7 +174,19 @@ export class TeleConsultationsService {
 
   async findMyConsultations(userId: string, role: 'FARMER' | 'VET') {
     await this.autoExpireStaleConsultations();
-    const where = role === 'FARMER' ? { farmerId: userId } : { vetId: userId };
+
+    let where: any;
+    if (role === 'FARMER') {
+      where = { farmerId: userId };
+    } else {
+      // Resolve all potential IDs (User ID and VetProfile ID)
+      const profile = await this.prisma.vetProfile.findFirst({
+        where: { OR: [{ id: userId }, { userId: userId }] },
+      });
+      const vetIds = profile ? Array.from(new Set([userId, profile.id, profile.userId])) : [userId];
+      where = { vetId: { in: vetIds } };
+    }
+
     return this.prisma.teleConsultation.findMany({
       where,
       include: {
@@ -175,11 +199,12 @@ export class TeleConsultationsService {
   }
 
   async autoExpireStaleConsultations() {
-    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    // Only expire if the consultation has passed by more than 24 hours
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const expired = await this.prisma.teleConsultation.findMany({
       where: {
         status: { in: ['PENDING', 'CONFIRMED'] },
-        scheduledTime: { lt: twoHoursAgo },
+        scheduledTime: { lt: oneDayAgo },
       },
       select: { id: true, slotId: true },
     });

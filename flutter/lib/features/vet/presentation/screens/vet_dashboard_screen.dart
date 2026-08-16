@@ -48,7 +48,9 @@ class _VetDashboardScreenState extends State<VetDashboardScreen> {
     final now = DateTime.now();
     return _upcoming.where((c) {
       try {
-        final t = DateTime.parse(c['scheduledTime'] ?? '');
+        final slotDateStr = c['slot']?['date'] ?? c['scheduledTime'] ?? '';
+        if (slotDateStr.isEmpty) return false;
+        final t = DateTime.parse(slotDateStr).toLocal();
         return t.year == now.year && t.month == now.month && t.day == now.day;
       } catch (_) {
         return false;
@@ -317,12 +319,30 @@ class _AppointmentCard extends StatelessWidget {
   final VoidCallback onRefresh;
   const _AppointmentCard({required this.consultation, required this.isVet, required this.onRefresh});
 
+  String _formatDateTime() {
+    try {
+      final slot = consultation['slot'] as Map<String, dynamic>?;
+      final dateStr = slot?['date'] ?? consultation['scheduledTime'] ?? '';
+      if (dateStr.isEmpty) return '';
+      final dt = DateTime.parse(dateStr).toLocal();
+      final dayStr = '${dt.day}/${dt.month}/${dt.year}';
+      if (slot != null && slot['startTime'] != null) {
+        return '$dayStr (${slot['startTime']} - ${slot['endTime'] ?? ""})';
+      }
+      return dayStr;
+    } catch (_) {
+      return '';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final status = consultation['status'] ?? 'PENDING';
     final farmerName = consultation['farmer']?['name'] ?? 'কৃষক';
+    final farmerPhone = consultation['farmer']?['phoneNumber'];
     final vetName = consultation['vet']?['name'] ?? 'ডাক্তার';
     final roomId = consultation['roomId'];
+    final timeStr = _formatDateTime();
 
     Color statusColor;
     String statusLabel;
@@ -355,6 +375,7 @@ class _AppointmentCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 6, offset: const Offset(0, 2))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -362,7 +383,24 @@ class _AppointmentCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(isVet ? farmerName : 'Dr. $vetName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0F172A))),
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: const Color(0xFF1565C0).withOpacity(0.1),
+                    child: const Icon(Icons.person_rounded, size: 18, color: Color(0xFF1565C0)),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(isVet ? farmerName : 'Dr. $vetName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0F172A))),
+                      if (isVet && farmerPhone != null && farmerPhone.toString().isNotEmpty)
+                        Text(farmerPhone.toString(), style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+                    ],
+                  ),
+                ],
+              ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
@@ -370,6 +408,24 @@ class _AppointmentCard extends StatelessWidget {
               ),
             ],
           ),
+          if (timeStr.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.schedule_rounded, size: 13, color: Color(0xFF1565C0)),
+                  const SizedBox(width: 5),
+                  Text(timeStr, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+                ],
+              ),
+            ),
+          ],
           if (consultation['notes'] != null && consultation['notes'].toString().isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(consultation['notes'].toString(), style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
