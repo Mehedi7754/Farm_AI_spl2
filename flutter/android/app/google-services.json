@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "144415006102",
+    "project_id": "farm-ai-8dfb1",
+    "storage_bucket": "farm-ai-8dfb1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:144415006102:android:6d50c45225b8ffd01551b7",
+        "android_client_info": {
+          "package_name": "com.example.farm_flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAwJyY4LK4ScjncuekqB65kbLSfoH0Xt2A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
